@@ -116,7 +116,7 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .katnr{width:34px;height:34px;border-radius:8px;background:var(--tuerkis);color:#fff;flex:none;
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold}
 .kat-kopf b{display:block;font-size:13px} .kat-kopf .klein{display:block}
-.pos{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f0f4f5}
+.pos{display:flex;align-items:center;gap:8px;padding:8px 0}
 .pos-info{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
 .pos-info img{width:44px;height:44px;object-fit:contain;border:1px solid var(--linie);border-radius:7px;background:#fff;flex:none}
 .pos-info b{display:block;font-size:13px}
@@ -129,6 +129,8 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
   font-size:13px;background:none;border:none;padding:9px 10px;cursor:pointer}
 .vorschlag:hover{background:var(--tuerkis-l)}
 .zoombar{cursor:zoom-in}
+.lupe{display:block;margin-top:2px;padding:0;font-size:12px;color:var(--tuerkis-d)}
+.lupe:hover{text-decoration:underline}
 .bildlupe{position:fixed;inset:0;background:rgba(27,43,50,.82);display:flex;align-items:center;
   justify-content:center;padding:16px;z-index:100}
 .bildlupe img{max-width:100%;max-height:78vh;object-fit:contain;border-radius:10px;background:#fff}
@@ -742,7 +744,7 @@ function materialView(ziel, block) {
       const img = bild(p.code, false);
       h += `<div class="pos">
         <div class="pos-info">${img?`<img src="${img}" alt="" class="zoombar" data-zoom="${esc(p.code)}" title="${t("bildVergroessern")}">`:""}
-          <div><span class="code">${esc(p.code||"")}</span><b>${esc(p.name)}</b></div></div>
+          <div><span class="code">${esc(p.code||"")}</span><b>${esc(p.name)}</b>${img?`<button class="link lupe" data-zoom="${esc(p.code)}">${t("bildVergroessern")}</button>`:""}</div></div>
         <input type="number" min="1" value="${p.menge}" data-menge="${pref}" data-kat="${kat}" data-i="${i}">
         <button class="link rot" data-rm="${pref}" data-kat="${kat}" data-i="${i}">✕</button></div>`;
     });
