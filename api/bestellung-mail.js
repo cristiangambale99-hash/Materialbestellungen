@@ -27,7 +27,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { nummer, abteilung, mitarbeiter, personalnummer, fahrzeug, pdf } = req.body || {};
+    const { nummer, abteilung, mitarbeiter, personalnummer, fahrzeug,
+            bestelldatum, bedarfsdatum, pdf } = req.body || {};
+
+    // 2026-09-25 -> 25.09.2026
+    const datum = (d) => {
+      if (!d) return null;
+      const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[3]}.${m[2]}.${m[1]}` : String(d);
+    };
 
     if (!nummer || !pdf) {
       return res.status(400).json({ fehler: "nummer oder pdf fehlt" });
@@ -44,6 +52,8 @@ export default async function handler(req, res) {
       `Mitarbeiter/in: ${mitarbeiter || "–"} (Personalnr. ${personalnummer || "–"})`,
     ];
     if (fahrzeug) zeilen.push(`Fahrzeug: ${fahrzeug}`);
+    if (datum(bestelldatum)) zeilen.push(`Bestellt am: ${datum(bestelldatum)}`);
+    if (datum(bedarfsdatum)) zeilen.push(`Benötigt bis: ${datum(bedarfsdatum)}`);
     zeilen.push("", "Der vollständige Lagerauftrag liegt als PDF bei.");
 
     const antwort = await fetch("https://api.resend.com/emails", {
