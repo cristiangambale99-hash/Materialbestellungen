@@ -362,14 +362,17 @@ jspdf/dist/jspdf.es.min.js:
 window.__FAHRZEUGE = [{"nr":"20","bez":"Ford Transit Brückenwagen","kz":"SH 61 779"},{"nr":"21","bez":"Humbaur H13K","kz":"ZH 834 890"},{"nr":"31","bez":"KIA cee'd Sportswagon","kz":"ZH 618 345"},{"nr":"34","bez":"Renault Trafic","kz":"SH 46 254"},{"nr":"36","bez":"Renault Trafic","kz":"SH 57 183"},{"nr":"38","bez":"Citroen Berlingo","kz":"ZH 257 777"},{"nr":"39","bez":"Nissan Navara 2.3dCi DCab","kz":"SH 45 499"},{"nr":"41","bez":"Renault Trafic","kz":"SH 52 620"},{"nr":"43","bez":"Citroen Berlingo","kz":"ZH 407 814"},{"nr":"44","bez":"Dacia Dokker","kz":"ZH 225 209"},{"nr":"45","bez":"Dacia Dokker","kz":"SH 61 780"},{"nr":"46","bez":"Renault Trafic","kz":"SH 62 757"},{"nr":"47","bez":"Dacia Sandero","kz":"ZH 748 799"},{"nr":"48","bez":"Dacia Dokker","kz":"ZH 945 386"},{"nr":"49","bez":"Dacia Dokker","kz":"ZH 748 798"},{"nr":"50","bez":"Renault Trafic","kz":"SH 61 778"},{"nr":"53","bez":"Pongratz  L-PAT 250/16G","kz":"ZH 826 622"},{"nr":"54","bez":"Renault Kangoo","kz":"ZH 963 253"},{"nr":"55","bez":"Renault Kangoo","kz":"ZH 937 869"},{"nr":"56","bez":"Renault Trafic","kz":"SH 50 027"},{"nr":"57","bez":"Renault Trafic","kz":"SH 49 742"},{"nr":"58","bez":"Renault Kangoo","kz":"ZH 398 378"},{"nr":"59","bez":"Renault Trafic","kz":"SH 39 015"},{"nr":"60","bez":"Renault Express","kz":"ZH 928 454"},{"nr":"61","bez":"Renault Trafic","kz":"SH 51 796"},{"nr":"62","bez":"Humbaur","kz":"ZH 845 554"},{"nr":"63","bez":"Porsche Targa","kz":"SH 9116"},{"nr":"64","bez":"Renault Mégane E-Tech","kz":"ZH 112 737"},{"nr":"65","bez":"Renault Trafic","kz":"SH 43 871"},{"nr":"66","bez":"Renault Trafic","kz":"SH 38 764"},{"nr":"67","bez":"Renault Mégane E-Tech","kz":"ZH 567 650"},{"nr":"69","bez":"Fiat E-Doblo Swiss Edition","kz":"ZH 177 672"},{"nr":"71","bez":"Dacia Spring electric 65","kz":"ZH 681 215"}];
 (function(){
   var PH = ["z. B. 46","p. ej. 46","ex. 46","es. 46"];
-  var LBL = {de:"Fahrzeug suchen oder aus Liste wählen",es:"Buscar vehículo o elegir de la lista",
-             pt:"Procurar veículo ou escolher da lista",it:"Cerca veicolo o scegli dall'elenco"};
-  var NORES = {de:"Kein Fahrzeug gefunden",es:"Ningún vehículo encontrado",
-               pt:"Nenhum veículo encontrado",it:"Nessun veicolo trovato"};
-  function lang(){ try { return localStorage.getItem('matbest_lang')||'de'; } catch(e){ return 'de'; } }
+  var TXT = {
+    de:{sel:"Fahrzeug wählen",ph:"Nummer, Modell oder Kennzeichen suchen…",chg:"Ändern",none:"Kein Fahrzeug gefunden",count:"Fahrzeuge",count1:"Fahrzeug"},
+    es:{sel:"Seleccionar vehículo",ph:"Buscar número, modelo o matrícula…",chg:"Cambiar",none:"Ningún vehículo encontrado",count:"vehículos",count1:"vehículo"},
+    pt:{sel:"Selecionar veículo",ph:"Procurar número, modelo ou matrícula…",chg:"Alterar",none:"Nenhum veículo encontrado",count:"veículos",count1:"veículo"},
+    it:{sel:"Seleziona veicolo",ph:"Cerca numero, modello o targa…",chg:"Cambia",none:"Nessun veicolo trovato",count:"veicoli",count1:"veicolo"}
+  };
+  function t(){ var l='de'; try{ l=localStorage.getItem('matbest_lang')||'de'; }catch(e){} return TXT[l]||TXT.de; }
+  function norm(s){ return (s||'').toLowerCase().split(' ').join(''); }
 
   function setReactValue(input, val){
-    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
     setter.call(input, val);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -377,69 +380,106 @@ window.__FAHRZEUGE = [{"nr":"20","bez":"Ford Transit Brückenwagen","kz":"SH 61 
   function enhance(input){
     if (input.__fzDone) return;
     input.__fzDone = true;
-    input.setAttribute('placeholder', LBL[lang()] || LBL.de);
-    input.setAttribute('autocomplete','off');
 
-    var list = document.createElement('div');
-    list.className = 'mt-2 max-h-72 overflow-auto border border-ink-200 rounded-lg divide-y divide-ink-100 bg-white';
-    input.parentElement.appendChild(list);
+    var narrow = input.parentElement;        // schmaler Wrapper (max-w-xs)
+    var host   = narrow.parentElement;       // volle Breite des Schritt-Inhalts
+    narrow.style.display = 'none';           // Originalfeld ausblenden, bleibt Datenträger
+
+    var box = document.createElement('div');
+    host.appendChild(box);
+
+    function find(nr){
+      for (var i=0;i<window.__FAHRZEUGE.length;i++) if (window.__FAHRZEUGE[i].nr===nr) return window.__FAHRZEUGE[i];
+      return null;
+    }
+
+    var query = '';
 
     function render(){
-      var raw = (input.value||'').trim();
-      var q = raw.toLowerCase();
+      var L = t(), cur = (input.value||'').trim(), sel = find(cur);
+      box.innerHTML = '';
+
+      if (sel){
+        var card = document.createElement('div');
+        card.className = 'flex items-center gap-3 border border-turquoise-500 bg-turquoise-50 rounded-lg px-3 py-3';
+        card.innerHTML = '<span class="w-11 h-11 flex-none rounded-lg bg-turquoise-500 text-white text-base font-bold flex items-center justify-center">'+sel.nr+'</span>';
+        var info = document.createElement('div'); info.className='min-w-0 flex-1';
+        var a = document.createElement('p'); a.className='text-sm font-bold text-ink-900 truncate'; a.textContent=sel.bez;
+        var c = document.createElement('p'); c.className='text-xs text-ink-500'; c.textContent=sel.kz;
+        info.appendChild(a); info.appendChild(c);
+        var btn = document.createElement('button');
+        btn.type='button';
+        btn.className='flex-none text-xs font-bold text-turquoise-700 hover:underline px-2 py-1';
+        btn.textContent=L.chg;
+        btn.addEventListener('click', function(){ query=''; setReactValue(input,''); setTimeout(render,0); });
+        card.appendChild(info); card.appendChild(btn);
+        box.appendChild(card);
+        return;
+      }
+
+      var lbl = document.createElement('p');
+      lbl.className = 'text-xs font-bold text-ink-500 mb-1.5';
+      lbl.textContent = L.sel;
+      box.appendChild(lbl);
+
+      var search = document.createElement('input');
+      search.type='text'; search.value=query; search.placeholder=L.ph; search.setAttribute('autocomplete','off');
+      search.className='w-full bg-white border border-ink-300 rounded-lg px-3 py-2.5 text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-turquoise-400 focus:border-turquoise-400 mb-3';
+      box.appendChild(search);
+
+      var q = query.trim().toLowerCase(), qn = norm(query);
       var items = window.__FAHRZEUGE.filter(function(v){
         if (!q) return true;
         if (v.nr.indexOf(q) === 0) return true;
         if (v.bez.toLowerCase().indexOf(q) > -1) return true;
-        return v.kz.toLowerCase().split(' ').join('').indexOf(q.split(' ').join('')) > -1;
+        return qn.length >= 3 && norm(v.kz).indexOf(qn) > -1;   // Kennzeichen erst ab 3 Zeichen
       });
-      list.innerHTML = '';
+
+      var grid = document.createElement('div');
+      grid.className = 'grid sm:grid-cols-2 gap-2 max-h-80 overflow-auto pr-1';
       if (!items.length){
         var p = document.createElement('p');
-        p.className = 'text-sm text-ink-500 py-6 text-center';
-        p.textContent = NORES[lang()] || NORES.de;
-        list.appendChild(p);
-        return;
+        p.className='text-sm text-ink-500 col-span-2 py-6 text-center';
+        p.textContent = L.none;
+        grid.appendChild(p);
       }
       items.forEach(function(v){
-        var active = (raw === v.nr);
         var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'w-full text-left px-3 py-2.5 flex items-center gap-3 ' + (active ? 'bg-turquoise-50' : 'hover:bg-turquoise-50');
-        var badge = document.createElement('span');
-        badge.className = 'w-10 h-10 flex-none rounded-lg bg-turquoise-500 text-white text-sm font-bold flex items-center justify-center';
-        badge.textContent = v.nr;
-        var txt = document.createElement('span');
-        txt.className = 'min-w-0 flex-1';
-        var n1 = document.createElement('span');
-        n1.className = 'block text-sm font-bold text-ink-900 truncate';
-        n1.textContent = v.bez;
-        var n2 = document.createElement('span');
-        n2.className = 'block text-xs text-ink-500';
-        n2.textContent = v.kz;
-        txt.appendChild(n1); txt.appendChild(n2);
-        b.appendChild(badge); b.appendChild(txt);
-        if (active){
-          var ok = document.createElement('span');
-          ok.className = 'text-turquoise-600 text-base flex-none';
-          ok.textContent = '\u2713';
-          b.appendChild(ok);
-        }
-        b.addEventListener('click', function(){ setReactValue(input, v.nr); setTimeout(render, 0); });
-        list.appendChild(b);
+        b.type='button';
+        b.className='text-left border border-ink-200 hover:border-turquoise-300 rounded-lg px-3 py-2.5 flex items-center gap-3 transition-colors';
+        b.innerHTML = '<span class="w-10 h-10 flex-none rounded-lg bg-turquoise-500 text-white text-sm font-bold flex items-center justify-center">'+v.nr+'</span>';
+        var d = document.createElement('span'); d.className='min-w-0';
+        var n1 = document.createElement('span'); n1.className='block text-sm font-bold text-ink-900 truncate'; n1.textContent=v.bez;
+        var n2 = document.createElement('span'); n2.className='block text-xs text-ink-500'; n2.textContent=v.kz;
+        d.appendChild(n1); d.appendChild(n2); b.appendChild(d);
+        b.addEventListener('click', function(){ setReactValue(input, v.nr); setTimeout(render,0); });
+        grid.appendChild(b);
+      });
+      box.appendChild(grid);
+
+      var cnt = document.createElement('p');
+      cnt.className='text-xs text-ink-400 mt-2';
+      cnt.textContent = items.length + ' ' + (items.length === 1 ? L.count1 : L.count);
+      box.appendChild(cnt);
+
+      search.addEventListener('input', function(){
+        query = search.value;
+        var pos = search.selectionStart;
+        render();
+        var ns = box.querySelector('input[type=text]');
+        if (ns){ ns.focus(); try{ ns.setSelectionRange(pos,pos); }catch(e){} }
       });
     }
-    input.addEventListener('input', render);
     render();
   }
 
   function scan(){
     var all = document.querySelectorAll('input[placeholder]');
-    for (var i = 0; i < all.length; i++){
+    for (var i=0;i<all.length;i++){
       if (PH.indexOf(all[i].getAttribute('placeholder')) > -1) enhance(all[i]);
     }
   }
-  new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(scan).observe(document.documentElement, { childList:true, subtree:true });
   scan();
 })();
 </script>
