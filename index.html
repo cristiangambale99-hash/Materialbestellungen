@@ -265,8 +265,7 @@ const T = {
     freitextHinweis: "Freitext, falls ein Artikel nicht in der Liste ist",
     freitextAdd: "Freitext-Artikel hinzufügen", freitextPh: "Bezeichnung",
     bildVergroessern: "Bild vergrössern", bildSchliessen: "Zum Schliessen tippen",
-    lieferungTitel: "Lieferung & Termin", lieferungAn: "Lieferung an",
-    bedarfsdatum: "Wann wird das Material spätestens benötigt?",
+    lieferungTitel: "Lieferung", lieferungAn: "Lieferung an",
     zusammenfassung: "Zusammenfassung & Unterschrift", abteilung: "Abteilung",
     anzahlPositionen: "Anzahl Positionen", lieferung: "Lieferung",
     unterschrift: "Unterschrift", unterschreiben: "Hier unterschreiben", loeschen: "Löschen",
@@ -280,7 +279,7 @@ const T = {
     adminTitelDash: "Admin-Dashboard", adminHinweis: "Geteilter Zugriff per Zugangscode",
     offen: "Offen", inBearbeitung: "In Bearbeitung", erledigt: "Erledigt",
     alleAbteilungen: "Alle Abteilungen", alleStatus: "Alle Status",
-    artikel: "Artikel", benoetigtBis: "benötigt bis", aktualisieren: "Aktualisieren",
+    artikel: "Artikel", aktualisieren: "Aktualisieren",
     ladefehler: "Verbindung zur Datenbank fehlgeschlagen.", laden: "Wird geladen…",
     anleitung: "Anleitung: So funktioniert die Bestellung",
     springer: "Springer",
@@ -313,8 +312,7 @@ const T = {
     freitextHinweis: "Texto libre si un artículo no está en la lista",
     freitextAdd: "Añadir artículo de texto libre", freitextPh: "Denominación",
     bildVergroessern: "Ampliar imagen", bildSchliessen: "Toca para cerrar",
-    lieferungTitel: "Entrega y plazo", lieferungAn: "Entrega a",
-    bedarfsdatum: "¿Para cuándo se necesita el material?",
+    lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumen y firma", abteilung: "Departamento",
     anzahlPositionen: "Número de posiciones", lieferung: "Entrega",
     unterschrift: "Firma", unterschreiben: "Firma aquí", loeschen: "Borrar",
@@ -328,7 +326,7 @@ const T = {
     adminTitelDash: "Panel de administración", adminHinweis: "Acceso compartido mediante código",
     offen: "Abierto", inBearbeitung: "En proceso", erledigt: "Completado",
     alleAbteilungen: "Todos los departamentos", alleStatus: "Todos los estados",
-    artikel: "artículos", benoetigtBis: "necesario hasta", aktualisieren: "Actualizar",
+    artikel: "artículos", aktualisieren: "Actualizar",
     ladefehler: "Error de conexión con la base de datos.", laden: "Cargando…",
     anleitung: "Guía: Cómo funciona el pedido",
     springer: "Comodín",
@@ -361,8 +359,7 @@ const T = {
     freitextHinweis: "Texto livre se um artigo não estiver na lista",
     freitextAdd: "Adicionar artigo de texto livre", freitextPh: "Designação",
     bildVergroessern: "Ampliar imagem", bildSchliessen: "Toca para fechar",
-    lieferungTitel: "Entrega e prazo", lieferungAn: "Entrega a",
-    bedarfsdatum: "Até quando é necessário o material?",
+    lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumo e assinatura", abteilung: "Departamento",
     anzahlPositionen: "Número de posições", lieferung: "Entrega",
     unterschrift: "Assinatura", unterschreiben: "Assina aqui", loeschen: "Apagar",
@@ -376,7 +373,7 @@ const T = {
     adminTitelDash: "Painel de administração", adminHinweis: "Acesso partilhado por código",
     offen: "Aberto", inBearbeitung: "Em processamento", erledigt: "Concluído",
     alleAbteilungen: "Todos os departamentos", alleStatus: "Todos os estados",
-    artikel: "artigos", benoetigtBis: "necessário até", aktualisieren: "Atualizar",
+    artikel: "artigos", aktualisieren: "Atualizar",
     ladefehler: "Erro de ligação à base de dados.", laden: "A carregar…",
     anleitung: "Guia: Como funciona o pedido",
     springer: "Volante",
@@ -409,8 +406,7 @@ const T = {
     freitextHinweis: "Testo libero se un articolo non è in elenco",
     freitextAdd: "Aggiungi articolo a testo libero", freitextPh: "Denominazione",
     bildVergroessern: "Ingrandisci immagine", bildSchliessen: "Tocca per chiudere",
-    lieferungTitel: "Consegna e termine", lieferungAn: "Consegna a",
-    bedarfsdatum: "Entro quando serve il materiale?",
+    lieferungTitel: "Consegna", lieferungAn: "Consegna a",
     zusammenfassung: "Riepilogo e firma", abteilung: "Reparto",
     anzahlPositionen: "Numero di posizioni", lieferung: "Consegna",
     unterschrift: "Firma", unterschreiben: "Firma qui", loeschen: "Cancella",
@@ -424,7 +420,7 @@ const T = {
     adminTitelDash: "Pannello amministrativo", adminHinweis: "Accesso condiviso tramite codice",
     offen: "Aperto", inBearbeitung: "In lavorazione", erledigt: "Completato",
     alleAbteilungen: "Tutti i reparti", alleStatus: "Tutti gli stati",
-    artikel: "articoli", benoetigtBis: "necessario entro", aktualisieren: "Aggiorna",
+    artikel: "articoli", aktualisieren: "Aggiorna",
     ladefehler: "Errore di connessione al database.", laden: "Caricamento…",
     anleitung: "Guida: Come funziona l'ordine",
     springer: "Jolly",
@@ -474,7 +470,6 @@ const S = {
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   aktKunde: null,      // laufender Block (PFS)
   positionen: [],      // ohne Kundenbezug (SPEZ / Springer)
-  bedarfsdatum: "",
   signatur: null,
   gesendet: null,
   mailFehler: false,
@@ -508,7 +503,7 @@ const lieferart = () => (nutztFahrzeug() ? "magazin_abholung" : LIEFERART[S.abte
 
 function reset() {
   S.schritt = 0; S.fahrzeug = ""; S.kunden = []; S.aktKunde = null;
-  S.positionen = []; S.bedarfsdatum = ""; S.signatur = null; S.gesendet = null; S.fehler = ""; S.mailFehler = false;
+  S.positionen = []; S.signatur = null; S.gesendet = null; S.fehler = ""; S.mailFehler = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -645,7 +640,7 @@ function schritte() {
   else if (mehrereKunden()) s.push(t("schrittKundeMaterial"));
   else s.push(t("schrittKunde"));
   if (!mehrereKunden()) s.push(t("schrittMaterial"));
-  s.push(t("schrittLieferung"), t("schrittUnterschrift"));
+  s.push(t("schrittUnterschrift"));
   return s;
 }
 
@@ -657,7 +652,6 @@ function wizardView() {
   const letzter = st.length - 1;
   if (S.schritt === 0) inhalt = nutztFahrzeug() ? fahrzeugView() : (mehrereKunden() ? pfsView() : kundeView());
   else if (S.schritt === letzter) inhalt = unterschriftView();
-  else if (S.schritt === letzter - 1) inhalt = lieferungView();
   else inhalt = materialView(S.positionen, null);
 
   return `${bar}<div class="karte">${inhalt}
@@ -677,7 +671,6 @@ function weiterOk() {
     if (mehrereKunden()) return S.kunden.length > 0 || (S.aktKunde && hatInhalt(S.aktKunde));
     return S.kunden.length === 1;
   }
-  if (S.schritt === letzter - 1) return !!S.bedarfsdatum;
   if (!mehrereKunden() && S.schritt === 1) return S.positionen.length > 0;
   return true;
 }
@@ -778,9 +771,7 @@ function lieferungView() {
   if (lieferart()==="objekt_adresse" && S.kunden[0]) ziel = `${S.kunden[0].kundenname} (${t("objektNr")} ${S.kunden[0].objektnummer})`;
   if (lieferart()==="mitarbeiter_adresse" && S.kunden.length) ziel = S.kunden.map(k=>k.kundenname).join(", ");
   return `<h2>${t("lieferungTitel")}</h2>
-    <div class="info"><span class="klein fett">${t("lieferungAn")}</span><p>${esc(ziel)}</p></div>
-    <label>${t("bedarfsdatum")}</label>
-    <input type="date" id="datum" value="${S.bedarfsdatum}" min="${new Date().toISOString().slice(0,10)}">`;
+    <div class="info"><span class="klein fett">${t("lieferungAn")}</span><p>${esc(ziel)}</p></div>`;
 }
 
 // Unterschrift
@@ -793,7 +784,6 @@ function unterschriftView() {
       <div><span class="klein fett">${t("abteilung")}</span><p>${abtName(S.abteilung)}</p></div>
       <div><span class="klein fett">${t("anzahlPositionen")}</span><p>${anz}</p></div>
       <div><span class="klein fett">${t("lieferung")}</span><p>${esc(ziel)}</p></div>
-      <div><span class="klein fett">${t("bedarfsdatum")}</span><p>${esc(S.bedarfsdatum)}</p></div>
     </div>
     <label>${t("unterschrift")}</label>
     <div class="sigbox"><canvas id="sig" width="600" height="180"></canvas>
@@ -819,7 +809,7 @@ function meineView() {
   return S.meine.map(b=>`<div class="karte zeile">
     <div><span class="code">${esc(b.nummer)}</span> <span class="pill ${b.status}">${t(b.status==="offen"?"offen":b.status==="in_bearbeitung"?"inBearbeitung":"erledigt")}</span>
       <b>${esc(b.kunden || abtName(b.abteilung))}</b>
-      <p class="klein">${b.anzahl_positionen} ${t("artikel")} · ${t("benoetigtBis")} ${esc(b.bedarfsdatum||"—")}</p></div>
+      <p class="klein">${b.anzahl_positionen} ${t("artikel")}</p></div>
   </div>`).join("");
 }
 
@@ -857,7 +847,7 @@ function adminKarte(b) {
     <div class="zeile">
       <div><span class="code">${esc(b.nummer)}</span> <span class="tag">${esc(b.abteilung)}</span>
         <b>${esc(ziel)}</b>
-        <p class="klein">${esc(b.mitarbeiter)} · ${b.positionen.length} ${t("artikel")} · ${t("benoetigtBis")} ${esc(b.bedarfsdatum||"—")}</p>
+        <p class="klein">${esc(b.mitarbeiter)} · ${b.positionen.length} ${t("artikel")}</p>
         ${bk}</div>
       <div class="reihe">
         <select data-status="${b.id}">
@@ -913,7 +903,7 @@ function bindMitarbeiter() {
   };
   if (el("senden")) el("senden").onclick = senden;
 
-  bindKunde(); bindFahrzeug(); bindMaterial(); bindLieferung(); bindSignatur();
+  bindKunde(); bindFahrzeug(); bindMaterial(); bindSignatur();
 }
 
 function bindKunde() {
@@ -1026,11 +1016,6 @@ function bindMaterial() {
   });
 }
 
-function bindLieferung() {
-  const d = el("datum");
-  if (d) d.onchange = () => { S.bedarfsdatum = d.value; render(); };
-}
-
 function bindSignatur() {
   const c = el("sig");
   if (!c) return;
@@ -1063,7 +1048,6 @@ async function senden() {
     abteilung: S.abteilung,
     lieferart: lieferart(),
     fahrzeug_nr: nutztFahrzeug() ? S.fahrzeug : null,
-    bedarfsdatum: S.bedarfsdatum || null,
     signatur: S.signatur,
     lieferadresse: null,
   };
@@ -1131,7 +1115,7 @@ function pdfBauen(best) {
   feld(W/2, "MITARBEITER/IN", `${S.user.vorname||""} ${S.user.nachname}`);
   y += 12;
   feld(14, "ERSTELLT AM", new Date().toISOString().slice(0,10));
-  feld(W/2, "BENÖTIGT BIS", best.daten.bedarfsdatum);
+  feld(W/2, "PERSONALNUMMER", S.user.personalnummer || "");
   y += 14;
 
   doc.setFillColor(245,249,249).roundedRect(14, y, W-28, best.daten.fahrzeug_nr?18:24, 1.5,1.5,"F");
@@ -1230,7 +1214,6 @@ async function mailVersand(best, doc) {
     fahrzeug:       best.fahrzeug_nr || best.daten?.fahrzeug_nr || S.fahrzeug || null,
     lieferung:      LIEFERART_TEXT[best.daten?.lieferart || lieferart()]?.de || null,
     bestelldatum:   new Date().toISOString().slice(0,10),
-    bedarfsdatum:   best.bedarfsdatum || best.daten?.bedarfsdatum || S.bedarfsdatum || null,
     kunden:         kunden.length ? kunden : null,
     positionen:     kunden.length ? null : (best.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
     pdf,
@@ -1286,7 +1269,7 @@ function adminPdf(b) {
   const kunden = b.kunden.map(k => ({ ...k, positionen: b.positionen.filter(p=>p.block_id===k.block_id) }));
   const ersatz = {
     nummer: b.nummer,
-    daten: { bedarfsdatum: b.bedarfsdatum, fahrzeug_nr: b.fahrzeug ? b.fahrzeug.split(" ")[0] : null, signatur: b.signatur },
+    daten: { fahrzeug_nr: b.fahrzeug ? b.fahrzeug.split(" ")[0] : null, signatur: b.signatur },
     kunden, positionen: b.positionen,
   };
   const merk = { user: S.user, abt: S.abteilung };
