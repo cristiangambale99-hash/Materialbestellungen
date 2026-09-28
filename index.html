@@ -273,6 +273,7 @@ const T = {
     absenden: "Bestellung absenden", sendet: "Wird gesendet…",
     erfolgTitel: "Bestellung übermittelt", bestellnummer: "Bestellnummer", status: "Status",
     erfolgInfo: "Deine Bestellung wurde weitergeleitet. Du findest sie unter \"Meine Bestellungen\".",
+    mailWarnung: "Die Bestellung ist gespeichert, die Mail ans Lager ging jedoch nicht raus. Bitte im Büro melden.",
     neueBestellung: "Weitere Bestellung erfassen", pdfBtn: "Lager-PDF herunterladen",
     zurueck: "Zurück", weiter: "Weiter",
     keineBestellungen: "Noch keine Bestellungen erfasst.",
@@ -320,6 +321,7 @@ const T = {
     absenden: "Enviar pedido", sendet: "Enviando…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número de pedido", status: "Estado",
     erfolgInfo: "Tu pedido ha sido enviado. Lo encuentras en \"Mis pedidos\".",
+    mailWarnung: "El pedido está guardado, pero el correo al almacén no se envió. Avisa a la oficina.",
     neueBestellung: "Registrar otro pedido", pdfBtn: "Descargar PDF de almacén",
     zurueck: "Volver", weiter: "Siguiente",
     keineBestellungen: "Todavía no hay pedidos.",
@@ -367,6 +369,7 @@ const T = {
     absenden: "Enviar pedido", sendet: "A enviar…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número do pedido", status: "Estado",
     erfolgInfo: "O teu pedido foi enviado. Encontra-lo em \"Os meus pedidos\".",
+    mailWarnung: "O pedido está guardado, mas o e-mail para o armazém não foi enviado. Avisa o escritório.",
     neueBestellung: "Registar outro pedido", pdfBtn: "Descarregar PDF de armazém",
     zurueck: "Voltar", weiter: "Avançar",
     keineBestellungen: "Ainda não há pedidos.",
@@ -414,6 +417,7 @@ const T = {
     absenden: "Invia ordine", sendet: "Invio in corso…",
     erfolgTitel: "Ordine inviato", bestellnummer: "Numero ordine", status: "Stato",
     erfolgInfo: "Il tuo ordine è stato inviato. Lo trovi in \"I miei ordini\".",
+    mailWarnung: "L'ordine è salvato, ma l'e-mail al magazzino non è partita. Avvisa l'ufficio.",
     neueBestellung: "Registra un altro ordine", pdfBtn: "Scarica PDF di magazzino",
     zurueck: "Indietro", weiter: "Avanti",
     keineBestellungen: "Ancora nessun ordine.",
@@ -473,6 +477,7 @@ const S = {
   bedarfsdatum: "",
   signatur: null,
   gesendet: null,
+  mailFehler: false,
   laden: false,
   fehler: "",
   meine: [],
@@ -503,7 +508,7 @@ const lieferart = () => (nutztFahrzeug() ? "magazin_abholung" : LIEFERART[S.abte
 
 function reset() {
   S.schritt = 0; S.fahrzeug = ""; S.kunden = []; S.aktKunde = null;
-  S.positionen = []; S.bedarfsdatum = ""; S.signatur = null; S.gesendet = null; S.fehler = "";
+  S.positionen = []; S.bedarfsdatum = ""; S.signatur = null; S.gesendet = null; S.fehler = ""; S.mailFehler = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -802,6 +807,7 @@ function erfolgView() {
     <h2>${t("erfolgTitel")}</h2>
     <p class="klein">${t("bestellnummer")} <b>${esc(S.gesendet.nummer)}</b> · ${t("status")} <b class="orange">${t("offen")}</b></p>
     <p class="klein">${t("erfolgInfo")}</p>
+    ${S.mailFehler ? `<p class="klein orange">${t("mailWarnung")}</p>` : ""}
     <div class="reihe mitte">
       <button class="btn sek" id="pdf">${t("pdfBtn")}</button>
       <button class="btn" id="neueBest">${t("neueBestellung")}</button>
@@ -1079,7 +1085,17 @@ async function senden() {
     const r = await DB.bestellungAnlegen(daten);
     const res = Array.isArray(r) ? r[0] : r;
     S.gesendet = { nummer: res.nummer, id: res.bestellung_id, daten, kunden: S.kunden.slice(), positionen: alleP() };
-    try { pdfErzeugen(S.gesendet); } catch {}
+
+    // Reihenfolge bewusst so: Das PDF wird gebaut, dann geht die Mail ans Lager,
+    // erst danach der Download. Der Mailversand darf nicht daran haengen, ob
+    // das Herunterladen auf dem Handy klappt -- genau daran ist er bisher
+    // haengen geblieben. Die Beekeeper-Nachricht an die bestellende Person
+    // loest davon unabhaengig die Datenbank aus, sobald das Lager die
+    // Bestellung auf "erledigt" setzt.
+    let doc = null;
+    try { doc = pdfBauen(S.gesendet); } catch (e) { console.warn("PDF nicht erzeugbar:", e); }
+    S.mailFehler = !(await mailVersand(S.gesendet, doc));
+    try { if (doc) doc.save(`Lagerauftrag_${S.gesendet.nummer}.pdf`); } catch (e) { console.warn(e); }
   } catch (e) {
     S.fehler = t("ladefehler") + " " + e.message;
   }
@@ -1087,8 +1103,11 @@ async function senden() {
 }
 
 // --- PDF -------------------------------------------------------------------
-function pdfErzeugen(best) {
-  if (!window.jspdf) return;
+// Baut den Lagerauftrag und gibt das Dokument zurueck, ohne es zu speichern
+// und ohne Mailversand. Wird beim Absenden, beim erneuten Herunterladen und
+// im Adminbereich verwendet.
+function pdfBauen(best) {
+  if (!window.jspdf) throw new Error("jsPDF nicht geladen");
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:"mm", format:"a4" });
   const B = [43,182,183], I = [27,43,50], G = [100,113,120];
@@ -1175,34 +1194,68 @@ function pdfErzeugen(best) {
        .text("T 0844 355 355 · info@clean-service.ch · clean-service.ch", 55, h-13);
     doc.text(`Seite ${i} / ${doc.internal.getNumberOfPages()}`, W-14, h-21, { align:"right" });
   }
-  doc.save(`Lagerauftrag_${best.nummer}.pdf`);
-  mailVersand(best, doc);
+  return doc;
 }
 
-// Sendet das erzeugte PDF an die Serverless-Funktion auf Vercel.
-// Schlaegt der Versand fehl, merkt die Mitarbeiterin nichts davon --
-// die Bestellung ist in der Datenbank und darf daran nicht haengen.
+// Nur herunterladen -- bewusst ohne Mailversand, damit das erneute Laden des
+// PDF und der Ausdruck im Adminbereich keine zweite Mail ausloesen.
+function pdfErzeugen(best) {
+  try { pdfBauen(best).save(`Lagerauftrag_${best.nummer}.pdf`); }
+  catch (e) { console.warn("PDF nicht erzeugbar:", e); }
+}
+
+// Meldet die Bestellung sofort nach dem Speichern an die Serverless-Funktion
+// auf Vercel, die daraus die Mail an den Teams-Kanal des Lagers macht.
+// Das PDF liegt bei, wenn es sich erzeugen liess; andernfalls geht die Mail
+// mit der vollstaendigen Positionsliste im Text raus, damit das Lager in
+// jedem Fall arbeiten kann.
+const GEMAILT = new Set();
+
 async function mailVersand(best, doc) {
-  try {
-    const b64 = doc.output("datauristring").split(",")[1];
-    const fz  = best.fahrzeug_nr || S.fahrzeug || null;
-    await fetch("/api/bestellung-mail", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nummer:         best.nummer,
-        abteilung:      abtName(best.abteilung || S.abteilung),
-        mitarbeiter:    [S.user?.vorname, S.user?.nachname].filter(Boolean).join(" "),
-        personalnummer: S.user?.personalnummer || "",
-        fahrzeug:       fz,
-        bestelldatum:   new Date().toISOString().slice(0,10),
-        bedarfsdatum:   best.bedarfsdatum || S.bedarfsdatum || null,
-        pdf:            b64
-      })
-    });
-  } catch (e) {
-    console.warn("Mailversand nicht moeglich:", e);
+  if (GEMAILT.has(best.nummer)) return true;
+
+  let pdf = null;
+  try { if (doc) pdf = doc.output("datauristring").split(",")[1]; }
+  catch (e) { console.warn("PDF-Anhang nicht moeglich:", e); }
+
+  const kunden = (best.kunden || []).map(k => ({
+    name: k.kundenname, objektnummer: k.objektnummer,
+    positionen: (k.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
+  }));
+  const nutzlast = {
+    nummer:         best.nummer,
+    abteilung:      abtName(best.abteilung || S.abteilung),
+    mitarbeiter:    [S.user?.vorname, S.user?.nachname].filter(Boolean).join(" "),
+    personalnummer: S.user?.personalnummer || "",
+    fahrzeug:       best.fahrzeug_nr || best.daten?.fahrzeug_nr || S.fahrzeug || null,
+    lieferung:      LIEFERART_TEXT[best.daten?.lieferart || lieferart()]?.de || null,
+    bestelldatum:   new Date().toISOString().slice(0,10),
+    bedarfsdatum:   best.bedarfsdatum || best.daten?.bedarfsdatum || S.bedarfsdatum || null,
+    kunden:         kunden.length ? kunden : null,
+    positionen:     kunden.length ? null : (best.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
+    pdf,
+  };
+
+  // Zwei Versuche: ein kurzer Aussetzer im Mobilfunknetz soll die Mail nicht
+  // kosten. Die Bestellung selbst liegt bereits in der Datenbank.
+  for (let versuch = 1; versuch <= 2; versuch++) {
+    try {
+      const abbruch = new AbortController();
+      const uhr = setTimeout(() => abbruch.abort(), 20000);
+      const antwort = await fetch("/api/bestellung-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nutzlast),
+        signal: abbruch.signal,
+      });
+      clearTimeout(uhr);
+      if (antwort.ok) { GEMAILT.add(best.nummer); return true; }
+      console.warn("Mailversand abgelehnt:", antwort.status, await antwort.text());
+    } catch (e) {
+      console.warn("Mailversand fehlgeschlagen (Versuch " + versuch + "):", e);
+    }
   }
+  return false;
 }
 
 // --- Admin -----------------------------------------------------------------
