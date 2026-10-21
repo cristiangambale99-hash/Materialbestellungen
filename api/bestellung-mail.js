@@ -125,8 +125,7 @@ function webstarText(d) {
   z.push("Bitte liefern Sie direkt an die oben genannte Adresse und vermerken Sie");
   z.push("unsere Bestellnummer auf Lieferschein und Rechnung.");
   z.push("");
-  if (d.pdf) z.push("Den vollständigen Lagerauftrag finden Sie im beiliegenden PDF.");
-  else z.push("Den vollständigen Lagerauftrag senden wir auf Wunsch gerne nach.");
+  z.push("Den Bestellschein finden Sie im beiliegenden PDF.");
   z.push("");
   z.push(`Für Rückfragen erreichen Sie uns unter T ${FIRMA.telefon}.`);
   z.push("");
@@ -216,6 +215,8 @@ function webstarHtml(d) {
 </body></html>`;
 }
 
+import { erstelleWebstarPdf, heuteLang } from "../lib/webstar-pdf.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ fehler: "Nur POST" });
@@ -260,7 +261,38 @@ export default async function handler(req, res) {
       nachricht.text = lagerText(d);
     }
 
-    if (d.pdf) {
+    if (anWebstar) {
+      // Der Bestellschein wird hier erzeugt, im selben Aufbau wie der
+      // Bestellschein der Hauswartung, damit Webstar von uns immer
+      // dasselbe Dokument erhaelt.
+      try {
+        const objekt = (d.kunden && d.kunden[0]) || {};
+        const adresse = String(d.lieferadresse || objekt.adresse || "");
+        const teil = adresse.split(",");
+        const pdf = await erstelleWebstarPdf({
+          nr: d.nummer,
+          lieferant: { name: "WEBSTAR (E. Weber & Cie AG)", email: TO },
+          heute: heuteLang(),
+          lieferdatum: /^\d{4}-\d{2}-\d{2}$/.test(String(d.bedarfsdatum || "")) ? d.bedarfsdatum : null,
+          positionen: flach(d.kunden, d.positionen)
+            .filter((p) => !p.titel)
+            .map((p) => ({ nr: p.code || "", name: p.name || "", menge: p.menge })),
+          objekt: {
+            kunde: objekt.name || "",
+            strasse: (teil[0] || "").trim(),
+            ort: teil.slice(1).join(",").trim(),
+            nr: objekt.objektnummer || "",
+          },
+          besteller: d.mitarbeiter || "",
+        });
+        nachricht.attachments = [
+          { filename: `Bestellung_${d.nummer}.pdf`, content: pdf.toString("base64") },
+        ];
+      } catch (e) {
+        console.warn("Bestellschein nicht erzeugbar:", e && e.message);
+        if (d.pdf) nachricht.attachments = [{ filename: `Lagerauftrag_${d.nummer}.pdf`, content: d.pdf }];
+      }
+    } else if (d.pdf) {
       nachricht.attachments = [{ filename: `Lagerauftrag_${d.nummer}.pdf`, content: d.pdf }];
     }
 
