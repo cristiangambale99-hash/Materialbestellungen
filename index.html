@@ -303,9 +303,9 @@ const DB = {
   mengenSetzen: (code, id, positionen) =>
     rpc("bestellung_mengen_setzen", { code, best_id: id, positionen }),
   pruefungSetzen: (id, pnr, pruefung) =>
-    rpc("bestellung_pruefung_setzen", { best_id: id, personalnummer: pnr, pruefung }),
+    rpc("bestellung_pruefung_setzen_v2", { best_id: id, personalnummer: pnr, pruefung }),
   autoFreigeben: (id, pnr) =>
-    rpc("bestellung_auto_freigeben_v2", { best_id: id, personalnummer: pnr }),
+    rpc("bestellung_auto_freigeben_v3", { best_id: id, personalnummer: pnr }),
 };
 
 // ---------------------------------------------------------------------------
