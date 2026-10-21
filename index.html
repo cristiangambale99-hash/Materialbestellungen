@@ -1710,6 +1710,9 @@ async function senden() {
     // die Mail an Webstar loest dort die Freigabe aus.
     S.mailFehler = uhFreigabe() ? false : !(await mailVersand(S.gesendet, doc));
     if (uhFreigabe()) {
+      // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal,
+      // unabhaengig davon, ob sie automatisch rausgeht oder wartet.
+      try { await mailVersand(S.gesendet, doc, "kanal"); } catch (e) { console.warn(e); }
       const pr = daten.pruefung;
       try { await DB.pruefungSetzen(S.gesendet.id, S.user.personalnummer, pr); } catch (e) { console.warn(e); }
       S.gesendet.pruefung = pr;
@@ -1863,6 +1866,7 @@ async function mailVersand(best, doc, ziel, extra) {
   const nutzlast = {
     nummer:         best.nummer,
     abteilung:      abtName(best.abteilung || S.abteilung),
+    abt:            best.abteilung || S.abteilung || null,
     mitarbeiter:    [S.user?.vorname, S.user?.nachname].filter(Boolean).join(" "),
     personalnummer: S.user?.personalnummer || "",
     fahrzeug:       best.fahrzeug_nr || best.daten?.fahrzeug_nr || S.fahrzeug || null,

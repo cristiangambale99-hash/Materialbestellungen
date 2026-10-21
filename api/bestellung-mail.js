@@ -345,6 +345,12 @@ export default async function handler(req, res) {
   // Die Bestellung an Webstar geht in Kopie an die Unterhaltsreinigung,
   // damit das Buero jede ausgeloeste Bestellung im Posteingang hat.
   const KOPIE_WEBSTAR = process.env.MAIL_WEBSTAR_CC || "unterhalt@clean-service.ch";
+  // Teams-Kanal je Abteilung: jede Bestellung soll zusaetzlich im Kanal
+  // der zustaendigen Abteilung erscheinen.
+  const KANAL = {
+    UH:  process.env.MAIL_KANAL_UH  || "73dafd23.clean-service.ch@emea.teams.ms",
+    PFS: process.env.MAIL_KANAL_PFS || "4294af1a.clean-service.ch@emea.teams.ms",
+  };
   // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
   const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
   const KUNDE_ANTWORT_AKTIV = true;
@@ -361,6 +367,8 @@ export default async function handler(req, res) {
 
     const anWebstar = d.ziel === "webstar";
     const anKunde   = d.ziel === "kunde";
+    const anKanal   = d.ziel === "kanal";
+    const kanal     = KANAL[String(d.abt || "").toUpperCase()] || null;
 
     let TO;
     if (anKunde) {
@@ -368,14 +376,24 @@ export default async function handler(req, res) {
       if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(TO)) {
         return res.status(400).json({ fehler: "Kundenadresse fehlt oder ist ungültig" });
       }
+    } else if (anKanal) {
+      if (!kanal) return res.status(400).json({ fehler: "Kein Kanal für diese Abteilung" });
+      TO = kanal;
     } else {
       TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
     }
 
     const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
+    // Die Mail ans Lager geht zusaetzlich in den Kanal der Abteilung.
+    if (!anWebstar && !anKunde && !anKanal && kanal && kanal !== TO) nachricht.cc = [kanal];
 
-    if (anKunde) {
+    if (anKanal) {
+      const teile = ["Materialbestellung", d.abteilung || "", d.mitarbeiter || "", d.personalnummer || ""];
+      if (d.fahrzeug) teile.push("Fahrzeug " + d.fahrzeug);
+      nachricht.subject = teile.filter(Boolean).join(" · ");
+      nachricht.text = lagerText(d);
+    } else if (anKunde) {
       nachricht.subject = kundeBetreff(d);
       nachricht.text = kundeText(d);
       nachricht.html = kundeHtml(d);
@@ -393,6 +411,8 @@ export default async function handler(req, res) {
 
     if (anKunde) {
       // Der Kunde bekommt kein PDF, alles steht im Mail.
+    } else if (anKanal) {
+      if (d.pdf) nachricht.attachments = [{ filename: `Bestellung_${d.nummer}.pdf`, content: d.pdf }];
     } else if (anWebstar) {
       // Der Bestellschein wird hier erzeugt, im selben Aufbau wie der
       // Bestellschein der Hauswartung, damit Webstar von uns immer
@@ -445,7 +465,8 @@ export default async function handler(req, res) {
 
     const daten = await antwort.json();
     console.log("Bestellmail versendet", d.nummer, daten.id,
-                anKunde ? "an den Kunden (" + (d.art || "lieferung") + ")"
+                anKanal ? "in den Kanal " + TO
+                        : anKunde ? "an den Kunden (" + (d.art || "lieferung") + ")"
                         : anWebstar ? "an Webstar" : "ans Lager",
                 nachricht.attachments ? "mit PDF" : "ohne PDF");
     return res.status(200).json({ ok: true, id: daten.id });
