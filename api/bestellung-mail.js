@@ -6,6 +6,9 @@
 //   ziel = "lager"    Teams-Kanal des Lagers. Knapper Text, damit der
 //                     Lagerist die Positionen im Kanal direkt lesen kann.
 //                     Loest aus, sobald eine Mitarbeiterin absendet.
+//   ziel = "kunde"    Kunde des Objekts. Lieferinformation oder Bitte um
+//                     Besorgung, je nach art. Die Adresse kommt aus dem
+//                     Objektdatensatz und wird hier auf Form geprueft.
 //   ziel = "webstar"  Lieferant der Unterhaltsreinigung. Richtige
 //                     Geschaeftsmail mit Positionstabelle und Lagerauftrag
 //                     als PDF. Loest erst die Freigabe im Adminbereich aus.
@@ -137,6 +140,116 @@ function webstarText(d) {
   return z.join("\n");
 }
 
+/* ------------------------------------------------------------------ *
+ * Mails an den Kunden
+ *   art = "lieferung"   Material ist bestellt, Lieferung in 48 Stunden
+ *   art = "besorgung"   Diese Artikel besorgt der Kunde laut Vereinbarung
+ * ------------------------------------------------------------------ */
+function kundeBetreff(d) {
+  return d.art === "besorgung"
+    ? "Bitte um Besorgung – Verbrauchsmaterial für Ihr Objekt"
+    : "Materialbestellung für Ihr Objekt – Lieferung innerhalb von 48 Stunden";
+}
+
+function kundeText(d) {
+  const o = (d.kunden && d.kunden[0]) || {};
+  const wo = [o.name, d.lieferadresse].filter(Boolean).join(", ");
+  const pos = (d.positionen || []).filter((p) => !p.titel);
+  const z = ["Guten Tag", ""];
+  if (d.art === "besorgung") {
+    z.push(`unsere Mitarbeiterin hat heute für Ihr Objekt ${wo} gemeldet, dass folgendes`);
+    z.push("Verbrauchsmaterial zur Neige geht:");
+    z.push("");
+    pos.forEach((p) => z.push(`  ${String(p.menge ?? "").padStart(3)} ×  ${p.name || ""}`));
+    z.push("");
+    z.push("Diese Artikel beschaffen Sie gemäss Vereinbarung selbst. Wir bestellen sie");
+    z.push("deshalb nicht und bitten Sie, für Nachschub zu sorgen.");
+    if (d.geliefert) {
+      z.push("");
+      z.push("Das übrige Material haben wir bestellt, es wird innerhalb der nächsten");
+      z.push("48 Stunden direkt zum Objekt geliefert.");
+    }
+    z.push("");
+    z.push(`Möchten Sie die Beschaffung künftig uns überlassen? Melden Sie sich unter`);
+    z.push(`T ${FIRMA.telefon}, wir passen das für Ihr Objekt an.`);
+  } else {
+    z.push(`für Ihr Objekt ${wo} wurde heute Reinigungsmaterial bestellt. Die Lieferung`);
+    z.push("erfolgt innerhalb der nächsten 48 Stunden direkt zum Objekt.");
+    z.push("");
+    pos.forEach((p) => z.push(`  ${String(p.menge ?? "").padStart(3)} ×  ${p.name || ""}`));
+    z.push("");
+    z.push("Sie müssen nichts veranlassen. Unsere Mitarbeiterin räumt das Material");
+    z.push("beim nächsten Einsatz ein.");
+    z.push("");
+    z.push(`Bei Fragen zur Lieferung erreichen Sie uns unter T ${FIRMA.telefon}.`);
+  }
+  z.push("", "Freundliche Grüsse", "", FIRMA.name,
+         `${FIRMA.strasse}, ${FIRMA.ort} · T ${FIRMA.telefon} · ${FIRMA.web}`);
+  return z.join("\n");
+}
+
+function kundeHtml(d) {
+  const o = (d.kunden && d.kunden[0]) || {};
+  const wo = [o.name, d.lieferadresse].filter(Boolean).join(", ");
+  const pos = (d.positionen || []).filter((p) => !p.titel);
+  const besorgung = d.art === "besorgung";
+  const zeilen = pos.map((p) => `
+    <tr>
+      <td style="padding:7px 0;border-bottom:1px solid #f1f5f6;font:400 12.5px/1.6 Verdana,Geneva,sans-serif;color:${INK}">${esc(p.name || "")}</td>
+      <td style="padding:7px 0;border-bottom:1px solid #f1f5f6;font:700 12.5px/1.6 Verdana,Geneva,sans-serif;color:${INK};text-align:right;white-space:nowrap;width:70px">${esc(String(p.menge ?? ""))}</td>
+    </tr>`).join("");
+
+  const kasten = besorgung
+    ? `<div style="border-left:3px solid #e0a64b;background:#fdf6e9;padding:11px 14px;border-radius:0 8px 8px 0;margin:0 0 14px;font:400 12.5px/1.7 Verdana,Geneva,sans-serif;color:#6b5a3c">
+         Diese Artikel beschaffen Sie gemäss Vereinbarung selbst. Wir bestellen sie deshalb nicht und bitten Sie, für Nachschub zu sorgen.
+       </div>`
+    : `<div style="border-left:3px solid #2bb6b7;background:${HELL};padding:11px 14px;border-radius:0 8px 8px 0;margin:0 0 14px;font:400 12.5px/1.7 Verdana,Geneva,sans-serif;color:${INK}">
+         Sie müssen nichts veranlassen. Unsere Mitarbeiterin räumt das Material beim nächsten Einsatz ein.
+       </div>`;
+
+  const einleitung = besorgung
+    ? `unsere Mitarbeiterin hat heute für Ihr Objekt <b>${esc(wo)}</b> gemeldet, dass folgendes Verbrauchsmaterial zur Neige geht:`
+    : `für Ihr Objekt <b>${esc(wo)}</b> wurde heute Reinigungsmaterial bestellt. Die Lieferung erfolgt innerhalb der nächsten 48 Stunden direkt zum Objekt.`;
+
+  const nachsatz = besorgung
+    ? (d.geliefert
+        ? `<p style="margin:0 0 12px">Das übrige Material haben wir bestellt, es wird innerhalb der nächsten 48 Stunden direkt zum Objekt geliefert.</p>`
+        : "")
+      + `<p style="margin:0 0 12px">Möchten Sie die Beschaffung künftig uns überlassen? Melden Sie sich unter T ${FIRMA.telefon}, wir passen das für Ihr Objekt an.</p>`
+    : `<p style="margin:0 0 12px">Bei Fragen zur Lieferung erreichen Sie uns unter T ${FIRMA.telefon}.</p>`;
+
+  return `<!doctype html><html><body style="margin:0;background:#f7fbfc;padding:22px 0">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7fbfc">
+      <tr><td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+               style="width:600px;max-width:92%;background:#fff;border:1px solid ${LINIE};border-radius:12px">
+          <tr><td style="padding:24px 26px 0">
+            ${d.logo ? `<img src="${d.logo}" alt="${esc(FIRMA.name)}" width="190" style="width:190px;max-width:60%;height:auto;display:block;margin-bottom:18px">` : ""}
+          </td></tr>
+          <tr><td style="padding:0 26px 22px;font:400 13px/1.7 Verdana,Geneva,sans-serif;color:${INK}">
+            <p style="margin:0 0 12px">Guten Tag</p>
+            <p style="margin:0 0 12px">${einleitung}</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 14px">
+              <tr>
+                <th align="left" style="padding:6px 0;border-bottom:1px solid ${LINIE};font:600 9.5px/1.4 Arial,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:${GRAU}">Artikel</th>
+                <th align="right" style="padding:6px 0;border-bottom:1px solid ${LINIE};font:600 9.5px/1.4 Arial,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:${GRAU}">${besorgung ? "Bedarf" : "Menge"}</th>
+              </tr>
+              ${zeilen}
+            </table>
+            ${kasten}
+            ${nachsatz}
+            <p style="margin:0 0 4px">Freundliche Grüsse<br>${esc(FIRMA.name)}</p>
+            <p style="margin:16px 0 0;padding-top:13px;border-top:1px solid ${LINIE};font:400 11.5px/1.6 Verdana,Geneva,sans-serif;color:${GRAU}">
+              <b style="color:#60beb3;font-size:12px">${esc(FIRMA.name)}</b><br>
+              ${esc(FIRMA.strasse)}, ${esc(FIRMA.ort)} · T ${esc(FIRMA.telefon)} · ${esc(FIRMA.web)}
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body></html>`;
+}
+
 function webstarHtml(d) {
   const objekt = (d.kunden && d.kunden[0]) || {};
   const eck = [
@@ -232,6 +345,9 @@ export default async function handler(req, res) {
   // Die Bestellung an Webstar geht in Kopie an die Unterhaltsreinigung,
   // damit das Buero jede ausgeloeste Bestellung im Posteingang hat.
   const KOPIE_WEBSTAR = process.env.MAIL_WEBSTAR_CC || "unterhalt@clean-service.ch";
+  // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
+  const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
+  const KUNDE_ANTWORT_AKTIV = true;
 
   if (!KEY) {
     return res.status(500).json({ fehler: "RESEND_API_KEY fehlt" });
@@ -244,12 +360,26 @@ export default async function handler(req, res) {
     }
 
     const anWebstar = d.ziel === "webstar";
-    const TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
+    const anKunde   = d.ziel === "kunde";
 
-    const nachricht = { from: FROM, to: [TO], reply_to: ANTWORT };
+    let TO;
+    if (anKunde) {
+      TO = String(d.empfaenger || "").trim();
+      if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(TO)) {
+        return res.status(400).json({ fehler: "Kundenadresse fehlt oder ist ungültig" });
+      }
+    } else {
+      TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
+    }
+
+    const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
 
-    if (anWebstar) {
+    if (anKunde) {
+      nachricht.subject = kundeBetreff(d);
+      nachricht.text = kundeText(d);
+      nachricht.html = kundeHtml(d);
+    } else if (anWebstar) {
       nachricht.subject = `Materialbestellung ${d.nummer} · ${FIRMA.name}`;
       nachricht.text = webstarText(d);
       nachricht.html = webstarHtml(d);
@@ -261,7 +391,9 @@ export default async function handler(req, res) {
       nachricht.text = lagerText(d);
     }
 
-    if (anWebstar) {
+    if (anKunde) {
+      // Der Kunde bekommt kein PDF, alles steht im Mail.
+    } else if (anWebstar) {
       // Der Bestellschein wird hier erzeugt, im selben Aufbau wie der
       // Bestellschein der Hauswartung, damit Webstar von uns immer
       // dasselbe Dokument erhaelt.
@@ -313,7 +445,9 @@ export default async function handler(req, res) {
 
     const daten = await antwort.json();
     console.log("Bestellmail versendet", d.nummer, daten.id,
-                anWebstar ? "an Webstar" : "ans Lager", d.pdf ? "mit PDF" : "ohne PDF");
+                anKunde ? "an den Kunden (" + (d.art || "lieferung") + ")"
+                        : anWebstar ? "an Webstar" : "ans Lager",
+                nachricht.attachments ? "mit PDF" : "ohne PDF");
     return res.status(200).json({ ok: true, id: daten.id });
 
   } catch (e) {

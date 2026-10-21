@@ -300,6 +300,7 @@ const DB = {
     rpc("bestellung_bereit_melden", { code, best_id: id, termin: termin || null }),
   // Freigabe der kontrollierten Unterhaltsreinigungs-Bestellung
   freigeben: (code, id) => rpc("bestellung_freigeben_v3", { code, best_id: id }),
+  objektKontakt: (nr) => rpc("objekt_kontakt", { p_objektnummer: nr }),
   mengenSetzen: (code, id, positionen) =>
     rpc("bestellung_mengen_setzen", { code, best_id: id, positionen }),
   pruefungSetzen: (id, pnr, pruefung) =>
@@ -1714,7 +1715,12 @@ async function senden() {
       S.gesendet.pruefung = pr;
       if (pr && !pr.auffaellig) {
         try {
-          if (await mailVersand(S.gesendet, doc, "webstar")) {
+          const teil = await uhAufteilen(S.gesendet);
+          const raus = teil.liefern.length
+            ? await mailVersand(S.gesendet, doc, "webstar", { positionen: teil.liefern, kunden: null })
+            : true;
+          if (raus) await kundenmails(S.gesendet, teil);
+          if (raus) {
             const a = await DB.autoFreigeben(S.gesendet.id, S.user.personalnummer);
             S.gesendet.ausgeloest = !!((Array.isArray(a) ? a[0] : a) || {}).ok;
           }
@@ -1842,8 +1848,8 @@ function pdfErzeugen(best) {
 // jedem Fall arbeiten kann.
 const GEMAILT = new Set();
 
-async function mailVersand(best, doc, ziel) {
-  const merke = (ziel || "lager") + ":" + best.nummer;
+async function mailVersand(best, doc, ziel, extra) {
+  const merke = (ziel || "lager") + ":" + ((extra && extra.art) || "") + ":" + best.nummer;
   if (GEMAILT.has(merke)) return true;
 
   let pdf = null;
@@ -1868,6 +1874,7 @@ async function mailVersand(best, doc, ziel) {
     kunden:         kunden.length ? kunden : null,
     positionen:     kunden.length ? null : (best.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
     pdf,
+    ...(extra || {}),
   };
 
   // Zwei Versuche: ein kurzer Aussetzer im Mobilfunknetz soll die Mail nicht
@@ -1952,6 +1959,47 @@ function bindAdmin() {
 
 // Freigabe der Unterhaltsreinigung: erst die Mail mit dem Lagerauftrag an
 // Webstar, und nur wenn die draussen ist, wird die Freigabe festgehalten.
+// Was liefern wir, was besorgt der Kunde selbst? Entscheidet sich am Objekt.
+async function uhAufteilen(best) {
+  const k = (best.kunden || [])[0] || {};
+  let kontakt = {};
+  if (k.objektnummer) {
+    try {
+      const r = await DB.objektKontakt(k.objektnummer);
+      kontakt = (Array.isArray(r) ? r[0] : r) || {};
+    } catch (e) { console.warn("Objektkontakt nicht lesbar:", e); }
+  }
+  const selbstListe = Array.isArray(kontakt.selbstbesorgung) ? kontakt.selbstbesorgung : [];
+  const alle = (k.positionen || best.positionen || []).map(p =>
+    ({ code: p.code, name: p.name, menge: p.menge }));
+  return {
+    kontakt, objektnummer: k.objektnummer || "",
+    kundenname: kontakt.kundenname || k.kundenname || "",
+    liefern: alle.filter(p => !selbstListe.includes(p.code)),
+    selbst:  alle.filter(p =>  selbstListe.includes(p.code)),
+  };
+}
+
+// Lieferinformation und, wenn noetig, die Bitte um Besorgung an den Kunden.
+async function kundenmails(best, teil) {
+  const mail = String((teil.kontakt && teil.kontakt.kunden_mail) || "").trim();
+  if (!mail) return false;
+  const basis = {
+    empfaenger: mail,
+    logo: typeof LOGO_KOPF === "string" ? LOGO_KOPF : null,
+    lieferadresse: best.daten?.lieferadresse || teil.kontakt.adresse || null,
+    kunden: [{ name: teil.kundenname, objektnummer: teil.objektnummer }],
+  };
+  let ok = true;
+  if (teil.liefern.length)
+    ok = await mailVersand(best, null, "kunde",
+      { ...basis, art: "lieferung", positionen: teil.liefern }) && ok;
+  if (teil.selbst.length)
+    ok = await mailVersand(best, null, "kunde",
+      { ...basis, art: "besorgung", geliefert: teil.liefern.length > 0, positionen: teil.selbst }) && ok;
+  return ok;
+}
+
 async function adminFreigeben(b) {
   S.adminLaden = b.id; S.fehler = ""; render();
   const ersatz = adminErsatz(b);
@@ -1959,7 +2007,11 @@ async function adminFreigeben(b) {
   await mitBesteller(b, async () => {
     let doc = null;
     try { doc = pdfBauen(ersatz); } catch (e) { console.warn("PDF nicht erzeugbar:", e); }
-    ok = await mailVersand(ersatz, doc, "webstar");
+    const teil = await uhAufteilen(ersatz);
+    ok = teil.liefern.length
+      ? await mailVersand(ersatz, doc, "webstar", { positionen: teil.liefern, kunden: null })
+      : true;
+    if (ok) await kundenmails(ersatz, teil);
   });
   try {
     if (!ok) S.fehler = t("webstarFehler");
