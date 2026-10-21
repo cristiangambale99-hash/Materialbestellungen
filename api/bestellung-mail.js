@@ -228,6 +228,9 @@ export default async function handler(req, res) {
     lager:   process.env.MAIL_TO      || "cee2eda3.clean-service.ch@emea.teams.ms",
     webstar: process.env.MAIL_WEBSTAR || "info@webstar.ch",
   };
+  // Die Bestellung an Webstar geht in Kopie an die Unterhaltsreinigung,
+  // damit das Buero jede ausgeloeste Bestellung im Posteingang hat.
+  const KOPIE_WEBSTAR = process.env.MAIL_WEBSTAR_CC || "unterhalt@clean-service.ch";
 
   if (!KEY) {
     return res.status(500).json({ fehler: "RESEND_API_KEY fehlt" });
@@ -243,6 +246,7 @@ export default async function handler(req, res) {
     const TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
 
     const nachricht = { from: FROM, to: [TO], reply_to: ANTWORT };
+    if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
 
     if (anWebstar) {
       nachricht.subject = `Materialbestellung ${d.nummer} · ${FIRMA.name}`;

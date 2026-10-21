@@ -114,6 +114,7 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .uhtab.detail{margin:0;background:#F6F9F9}
 .uhtab.detail td{padding:5px 8px 5px 22px;border-bottom:1px solid #E9EFF0;font-size:12.5px}
 .treffer{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.kundenliste{max-height:460px;overflow-y:auto;padding-right:4px}
 .schalter{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .gruen{color:#1C6B5F}
 .btn.klein{padding:5px 10px;font-size:12px}
@@ -1239,14 +1240,18 @@ function uhVerrechnungView() {
 // --- Objekte: was der Kunde selbst besorgt ---------------------------------
 function uhObjekteView() {
   const q = S.uhSuche.trim().toLowerCase();
-  const tr = q.length < 2 ? [] : S.uhObjekte.filter(o =>
-    o.kundenname.toLowerCase().includes(q) || o.objektnummer.startsWith(q)).slice(0, 25);
+  // Alle Kunden stehen da; das Suchfeld filtert nur.
+  const alle = q ? S.uhObjekte.filter(o =>
+      o.kundenname.toLowerCase().includes(q) || o.objektnummer.startsWith(q))
+    : S.uhObjekte;
+  const tr = alle.slice(0, 400);
   const o = S.uhObjekte.find(x => x.objektnummer === S.uhObjekt);
   return `<div class="karte">
     <b>Objekt wählen</b>
     <p class="klein">Pro Objekt festlegen, welche Artikel der Kunde selbst besorgt. Bestellt die Mitarbeiterin einen davon, erhält der Kunde die Meldung «bitte selbst besorgen».</p>
-    <div class="suchfeld"><input id="uhSuche" value="${esc(S.uhSuche)}" placeholder="Objektnummer oder Name" autocomplete="off"></div>
-    ${tr.length ? `<div class="treffer">${tr.map(x=>`<button class="eintrag" data-uhobj="${esc(x.objektnummer)}">
+    <div class="suchfeld"><input id="uhSuche" value="${esc(S.uhSuche)}" placeholder="Objektnummer oder Name filtern" autocomplete="off"></div>
+    <p class="klein">${alle.length} von ${S.uhObjekte.length} Kunden${tr.length < alle.length ? ` · erste ${tr.length} angezeigt` : ""}</p>
+    ${tr.length ? `<div class="treffer kundenliste">${tr.map(x=>`<button class="eintrag" data-uhobj="${esc(x.objektnummer)}">
         <span class="flex1"><b>${esc(x.kundenname)}</b><span class="klein"> Objekt-Nr. ${esc(x.objektnummer)}</span></span>
         ${x.selbstbesorgung.length?`<span class="kenn warn">${x.selbstbesorgung.length} selbst</span>`:""}</button>`).join("")}</div>` : ""}
   </div>
