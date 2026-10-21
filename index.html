@@ -61,6 +61,24 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .wahl.an{background:var(--tuerkis);border-color:var(--tuerkis);color:#fff}
 .wahl.voll{width:100%;text-align:left}
 
+.abtwahl{background:#fff;border:1px solid var(--linie);border-radius:12px;padding:14px;margin-bottom:12px}
+.abtfrage{margin:0;font-weight:600;font-size:15px}
+.abtwahl>.klein{margin:4px 0 12px;color:var(--grau)}
+.abtkarten{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.abtkarte{position:relative;display:flex;align-items:flex-start;gap:10px;text-align:left;
+  background:#F7FBFC;border:1px solid var(--linie);border-radius:10px;padding:13px 14px;
+  font:inherit;color:inherit;cursor:pointer;min-width:0}
+.abtkarte:hover{border-color:#A9E0E1}
+.abtkarte.an{background:#EDF7F9;border-color:#2BB6B7;box-shadow:0 0 0 1px #2BB6B7 inset}
+.abtkarte .haken{width:22px;height:22px;border-radius:50%;border:1px solid #CFD8DA;background:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:none;margin-top:2px}
+.abtkarte.an .haken{background:#2BB6B7;border-color:#2BB6B7}
+.abtinhalt{min-width:0;flex:1;display:block;text-align:left}
+.abtkarte b{display:block;font-size:14.5px;margin-bottom:3px}
+.abtkarte .was{display:block;font-size:13px}
+.abtkarte .wohin{display:block;font-size:12px;color:var(--grau);margin-top:2px}
+.abtkarte .aktiv{position:absolute;top:10px;right:12px;font-size:10px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:#1B8384}
 .tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--linie);border-radius:9px;padding:4px}
 .pruefbox{background:#FDF6E9;border:1px solid #F0DFC0;border-radius:9px;padding:12px 14px;margin-top:10px}
 .pruefbox>b{display:block;font-size:13px;color:#8A5A06}
@@ -298,11 +316,14 @@ const T = {
     anmelden: "Anmelden", pnr: "Personalnummer", pnrPh: "z. B. 25743",
     pnrFehler: "Personalnummer nicht gefunden.",
     bestaetigenFrage: "Du meldest dich an als", jaIchBin: "Ja, das bin ich", abbrechen: "Abbrechen",
-    adminLink: "Admin-Zugang (Objektleiter/Geschäftsleitung)", zurueckLogin: "Zurück zur Anmeldung",
+    adminLink: "Admin-Zugang", zurueckLogin: "Zurück zur Anmeldung",
     adminTitel: "Admin-Zugang", adminCode: "Zugangscode", adminCodePh: "Zugangscode eingeben",
     zugreifen: "Zugreifen", adminFehler: "Zugangscode falsch.",
     abmelden: "Abmelden", neu: "Neue Bestellung", meine: "Meine Bestellungen",
-    abteilungWaehlen: "Abteilung wählen", angemeldetAls: "Angemeldet als",
+    abteilungWaehlen: "Abteilung wählen",
+    abtFrage: "Für welche Abteilung bestellst du?", abtErklaerung: "Du arbeitest in beiden. Die Wahl bestimmt das Sortiment und wohin geliefert wird.",
+    abtUhWas: "Material für ein Objekt", abtUhWohin: "Lieferung direkt zum Objekt",
+    abtPfsWas: "Material für deine Privatkunden", abtPfsWohin: "Abholung im Magazin oder Lieferung zu dir nach Hause", abtAktiv: "Aktive Auswahl", angemeldetAls: "Angemeldet als",
     schrittKunde: "Kunde / Objekt", schrittKundeMaterial: "Kunde & Material",
     schrittFahrzeug: "Fahrzeug", schrittMaterial: "Material",
     schrittLieferung: "Lieferung", schrittUnterschrift: "Unterschrift",
@@ -349,11 +370,14 @@ const T = {
     anmelden: "Iniciar sesión", pnr: "N.º de personal", pnrPh: "p. ej. 25743",
     pnrFehler: "Número de personal no encontrado.",
     bestaetigenFrage: "Vas a iniciar sesión como", jaIchBin: "Sí, soy yo", abbrechen: "Cancelar",
-    adminLink: "Acceso admin (responsables/dirección)", zurueckLogin: "Volver al inicio de sesión",
+    adminLink: "Acceso admin", zurueckLogin: "Volver al inicio de sesión",
     adminTitel: "Acceso admin", adminCode: "Código de acceso", adminCodePh: "Introduce el código",
     zugreifen: "Acceder", adminFehler: "Código incorrecto.",
     abmelden: "Cerrar sesión", neu: "Nuevo pedido", meine: "Mis pedidos",
-    abteilungWaehlen: "Seleccionar departamento", angemeldetAls: "Sesión iniciada como",
+    abteilungWaehlen: "Seleccionar departamento",
+    abtFrage: "¿Para qué departamento haces el pedido?", abtErklaerung: "Trabajas en ambos. La elección define el surtido y el lugar de entrega.",
+    abtUhWas: "Material para un objeto", abtUhWohin: "Entrega directa en el objeto",
+    abtPfsWas: "Material para tus clientes particulares", abtPfsWohin: "Recogida en el almacén o entrega en tu domicilio", abtAktiv: "Selección activa", angemeldetAls: "Sesión iniciada como",
     schrittKunde: "Cliente / objeto", schrittKundeMaterial: "Cliente y material",
     schrittFahrzeug: "Vehículo", schrittMaterial: "Material",
     schrittLieferung: "Entrega", schrittUnterschrift: "Firma",
@@ -400,11 +424,14 @@ const T = {
     anmelden: "Iniciar sessão", pnr: "N.º de funcionário", pnrPh: "ex. 25743",
     pnrFehler: "Número de funcionário não encontrado.",
     bestaetigenFrage: "Vais iniciar sessão como", jaIchBin: "Sim, sou eu", abbrechen: "Cancelar",
-    adminLink: "Acesso admin (responsáveis/direção)", zurueckLogin: "Voltar ao início de sessão",
+    adminLink: "Acesso admin", zurueckLogin: "Voltar ao início de sessão",
     adminTitel: "Acesso admin", adminCode: "Código de acesso", adminCodePh: "Introduz o código",
     zugreifen: "Aceder", adminFehler: "Código incorreto.",
     abmelden: "Sair", neu: "Novo pedido", meine: "Os meus pedidos",
-    abteilungWaehlen: "Selecionar departamento", angemeldetAls: "Sessão iniciada como",
+    abteilungWaehlen: "Selecionar departamento",
+    abtFrage: "Para que departamento estás a encomendar?", abtErklaerung: "Trabalhas nos dois. A escolha define o sortido e o local de entrega.",
+    abtUhWas: "Material para um objeto", abtUhWohin: "Entrega direta no objeto",
+    abtPfsWas: "Material para os teus clientes particulares", abtPfsWohin: "Levantamento no armazém ou entrega em tua casa", abtAktiv: "Seleção ativa", angemeldetAls: "Sessão iniciada como",
     schrittKunde: "Cliente / objeto", schrittKundeMaterial: "Cliente e material",
     schrittFahrzeug: "Veículo", schrittMaterial: "Material",
     schrittLieferung: "Entrega", schrittUnterschrift: "Assinatura",
@@ -451,11 +478,14 @@ const T = {
     anmelden: "Accedi", pnr: "N. personale", pnrPh: "es. 25743",
     pnrFehler: "Numero di personale non trovato.",
     bestaetigenFrage: "Stai accedendo come", jaIchBin: "Sì, sono io", abbrechen: "Annulla",
-    adminLink: "Accesso admin (responsabili/direzione)", zurueckLogin: "Torna all'accesso",
+    adminLink: "Accesso admin", zurueckLogin: "Torna all'accesso",
     adminTitel: "Accesso admin", adminCode: "Codice di accesso", adminCodePh: "Inserisci il codice",
     zugreifen: "Accedi", adminFehler: "Codice errato.",
     abmelden: "Disconnetti", neu: "Nuovo ordine", meine: "I miei ordini",
-    abteilungWaehlen: "Seleziona reparto", angemeldetAls: "Accesso effettuato come",
+    abteilungWaehlen: "Seleziona reparto",
+    abtFrage: "Per quale reparto stai ordinando?", abtErklaerung: "Lavori in entrambi. La scelta determina l'assortimento e il luogo di consegna.",
+    abtUhWas: "Materiale per un oggetto", abtUhWohin: "Consegna diretta all'oggetto",
+    abtPfsWas: "Materiale per i tuoi clienti privati", abtPfsWohin: "Ritiro in magazzino o consegna a casa tua", abtAktiv: "Selezione attiva", angemeldetAls: "Accesso effettuato come",
     schrittKunde: "Cliente / oggetto", schrittKundeMaterial: "Cliente e materiale",
     schrittFahrzeug: "Veicolo", schrittMaterial: "Materiale",
     schrittLieferung: "Consegna", schrittUnterschrift: "Firma",
@@ -540,7 +570,8 @@ const S = {
   // Formular
   fahrzeug: "",
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
-  adminRolle: "lager", uhTab: "bestellungen", uhObjekt: null, uhSuche: "",
+  adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
+  uhTab: "bestellungen", uhObjekt: null, uhSuche: "",
   uhObjekte: [], uhVerrechnung: [], uhVerrErledigt: false,
   aktKunde: null,      // laufender Block (PFS)
   positionen: [],      // ohne Kundenbezug (SPEZ / Springer)
@@ -814,9 +845,32 @@ function mitarbeiterView() {
         <button class="${S.tab==="meine"?"an":""}" data-tab="meine">${t("meine")}</button>
       </div>
     </div>
-    ${S.tab==="neu" && mehrfach ? `<p class="klein fett">${t("abteilungWaehlen")}</p>
-      <div class="reihe">${S.user.abteilungen.map(a=>`<button class="wahl ${a===S.abteilung?"an":""}" data-abt="${a}">${abtName(a)}</button>`).join("")}</div>` : ""}
+    ${S.tab==="neu" && mehrfach ? abteilungsWahlView() : ""}
     ${S.tab==="neu" ? wizardView() : meineView()}`;
+}
+
+// Zwei grosse Karten statt zwei schmaler Knoepfe: Die Mitarbeiterin sieht,
+// was sie waehlt und was danach anders ist.
+function abteilungsWahlView() {
+  const karte = (a) => {
+    const an = a === S.abteilung;
+    const was   = a === "UH" ? t("abtUhWas")   : t("abtPfsWas");
+    const wohin = a === "UH" ? t("abtUhWohin") : t("abtPfsWohin");
+    return `<button class="abtkarte ${an ? "an" : ""}" data-abt="${a}" aria-pressed="${an}">
+      <span class="haken" aria-hidden="true">${an ? "✓" : ""}</span>
+      <span class="abtinhalt">
+        <b>${abtName(a)}</b>
+        <span class="was">${was}</span>
+        <span class="wohin">${wohin}</span>
+      </span>
+      ${an ? `<span class="aktiv">${t("abtAktiv")}</span>` : ""}
+    </button>`;
+  };
+  return `<div class="abtwahl">
+    <p class="abtfrage">${t("abtFrage")}</p>
+    <p class="klein">${t("abtErklaerung")}</p>
+    <div class="abtkarten">${S.user.abteilungen.map(karte).join("")}</div>
+  </div>`;
 }
 
 function schritte() {
@@ -1040,7 +1094,12 @@ function adminView() {
       <div class="kachel"><b>${z("in_bearbeitung")+z("freigegeben")+z("bereit")}</b><span>${t("inBearbeitung")}</span></div>
       <div class="kachel"><b>${z("erledigt")}</b><span>${t("erledigt")}</span></div>
     </div>
-    <div class="reihe">
+    <div class="tabs">
+      <button class="${S.lagerTab!=="auswertung"?"an":""}" data-lagertab="bestellungen">Bestellungen</button>
+      <button class="${S.lagerTab==="auswertung"?"an":""}" data-lagertab="auswertung">Auswertung</button>
+    </div>
+    ${S.lagerTab === "auswertung" ? lagerAuswertungView() : ""}
+    <div class="reihe"${S.lagerTab==="auswertung"?' hidden':''}>
       <select id="fAbt"><option value="">${t("alleAbteilungen")}</option>
         ${["UH","PFS","SPEZ"].map(a=>`<option value="${a}"${S.adminFilterAbt===a?" selected":""}>${abtName(a)}</option>`).join("")}</select>
       <select id="fStatus"><option value="">${t("alleStatus")}</option>
@@ -1051,7 +1110,9 @@ function adminView() {
         <option value="erledigt"${S.adminFilterStatus==="erledigt"?" selected":""}>${t("erledigt")}</option></select>
     </div>
     ${S.fehler?`<p class="fehler">${esc(S.fehler)}</p>`:""}
-    ${gefiltert.length ? gefiltert.map(adminKarte).join("") : `<div class="karte mitte"><p class="klein">${t("keineBestellungen")}</p></div>`}`;
+    ${S.lagerTab === "auswertung" ? ""
+      : gefiltert.length ? gefiltert.map(adminKarte).join("")
+      : `<div class="karte mitte"><p class="klein">${t("keineBestellungen")}</p></div>`}`;
 }
 
 
@@ -1201,49 +1262,76 @@ function uhObjekteView() {
   </div>` : ""}`;
 }
 
-// --- Auswertung ------------------------------------------------------------
-function uhAuswertungView() {
-  const l = uhBestellungen();
-  // Je Schluessel: Anzahl Bestellungen, Gesamtmenge und Menge pro Artikel
-  const summe = (schl) => {
-    const m = new Map();
-    for (const b of l) {
-      const k = schl(b);
+// --- Auswertung (wird vom Lager und von der Unterhaltsreinigung genutzt) ---
+// schluessel(b) liefert je Bestellung ein oder mehrere Paare [Name, Positionen],
+// damit sich dieselbe Tabelle nach Mitarbeiterin, Objekt oder Fahrzeug bauen laesst.
+function auswertungDaten(liste, schluessel) {
+  const m = new Map();
+  for (const b of liste) {
+    for (const [k, pos] of schluessel(b)) {
       const e = m.get(k) || { menge: 0, best: 0, art: new Map() };
       e.best += 1;
-      for (const p of b.positionen) {
+      for (const p of pos || []) {
         e.menge += p.menge;
-        const a = e.art.get(p.code) || { name: p.name, menge: 0 };
+        const a = e.art.get(p.code) || { name: p.anzeige || p.name, menge: 0 };
         a.menge += p.menge; e.art.set(p.code, a);
       }
       m.set(k, e);
     }
-    return [...m.entries()].sort((a, b) => b[1].menge - a[1].menge);
-  };
+  }
+  return [...m.entries()].sort((a, b) => b[1].menge - a[1].menge);
+}
 
+const nachMitarbeiter = (b) => [[b.mitarbeiter || "—", b.positionen]];
+const nachObjekt = (b) => (b.kunden && b.kunden.length)
+  ? b.kunden.map(k => [k.kundenname,
+      b.positionen.filter(p => p.block_id == null || p.block_id === k.block_id)])
+  : [[b.lieferadresse || "—", b.positionen]];
+const nachFahrzeug = (b) => [[b.fahrzeug || "—", b.positionen]];
+
+function auswertungTabelle(titel, daten, spalte) {
+  const max = Math.max(1, ...daten.map(x => x[1].menge));
   const detail = (e) => `<table class="uhtab detail"><tbody>${
     [...e.art.entries()].sort((a, b) => b[1].menge - a[1].menge)
       .map(([code, a]) => `<tr><td class="code">${esc(code)}</td><td>${esc(a.name)}</td>
         <td class="re"><b>${a.menge}</b></td></tr>`).join("")}</tbody></table>`;
+  return `<div class="karte"><b>${titel}</b>
+    <div class="sumkopf"><span class="sumzeile">
+      <span class="flex1">${spalte}</span><span class="sp">Bestellungen</span>
+      <span class="sp">Artikel total</span><span class="sp bal"></span></span></div>
+    <table class="uhtab"><tbody>${daten.map(([k, v]) => `<tr><td colspan="4" style="padding:0">
+      <details><summary><span class="sumzeile">
+          <b class="flex1">${esc(k)}</b>
+          <span class="sp">${v.best}</span><span class="sp"><b>${v.menge}</b></span>
+          <span class="sp bal"><span class="balken" style="width:${Math.round(v.menge / max * 100)}%"></span></span>
+        </span></summary>${detail(v)}</details></td></tr>`).join("")}
+    </tbody></table></div>`;
+}
 
-  const tabelle = (titel, daten, spalte) => {
-    const max = Math.max(1, ...daten.map(x => x[1].menge));
-    return `<div class="karte"><b>${titel}</b>
-      <div class="sumkopf"><span class="sumzeile">
-        <span class="flex1">${spalte}</span><span class="sp">Bestellungen</span>
-        <span class="sp">Artikel total</span><span class="sp bal"></span></span></div>
-      <table class="uhtab"><tbody>${daten.map(([k, v]) => `<tr><td colspan="4" style="padding:0">
-        <details><summary><span class="sumzeile">
-            <b class="flex1">${esc(k)}</b>
-            <span class="sp">${v.best}</span><span class="sp"><b>${v.menge}</b></span>
-            <span class="sp bal"><span class="balken" style="width:${Math.round(v.menge / max * 100)}%"></span></span>
-          </span></summary>${detail(v)}</details></td></tr>`).join("")}
-      </tbody></table></div>`;
-  };
-
+// Auswertung einer Abteilung: immer nach Mitarbeiterin, dazu nach Objekt
+// beziehungsweise bei der Spezialreinigung nach Fahrzeug.
+function auswertungAbteilung(liste, abt) {
+  if (!liste.length) return `<div class="karte mitte"><p class="klein">Keine Bestellungen.</p></div>`;
+  const zweite = abt === "SPEZ"
+    ? ["Menge pro Fahrzeug", auswertungDaten(liste, nachFahrzeug), "Fahrzeug"]
+    : ["Menge pro Objekt", auswertungDaten(liste, nachObjekt), "Objekt"];
   return `<p class="klein" style="margin-bottom:8px">Zeile anklicken für die Mengen pro Artikel.</p>
-    ${tabelle("Menge pro Mitarbeiterin", summe(b => b.mitarbeiter || "—"), "Mitarbeiterin")}
-    ${tabelle("Menge pro Objekt", summe(b => (b.kunden[0] || {}).kundenname || "—"), "Objekt")}`;
+    ${auswertungTabelle("Menge pro Mitarbeiterin", auswertungDaten(liste, nachMitarbeiter), "Mitarbeiterin")}
+    ${auswertungTabelle(zweite[0], zweite[1], zweite[2])}`;
+}
+
+function uhAuswertungView() { return auswertungAbteilung(uhBestellungen(), "UH"); }
+
+// Dieselbe Auswertung wie in der Unterhaltsreinigung, hier aber fuer jede
+// Abteilung einzeln: Unterhaltsreinigung und Putzfrauenservice nach Objekt,
+// Spezialreinigung nach Fahrzeug.
+function lagerAuswertungView() {
+  const abt = S.lagerAbt || "UH";
+  const liste = S.adminDaten.filter(b => b.abteilung === abt);
+  return `<p class="klein fett" style="margin-bottom:6px">Abteilung</p>
+    <div class="reihe">${["UH","PFS","SPEZ"].map(a =>
+      `<button class="wahl ${a===abt?"an":""}" data-lagerabt="${a}">${abtName(a)}</button>`).join("")}</div>
+    ${auswertungAbteilung(liste, abt)}`;
 }
 
 function adminKarte(b) {
@@ -1818,6 +1906,11 @@ function bindAdmin() {
       render();
     };
   });
+  document.querySelectorAll("[data-lagertab]").forEach(b =>
+    b.onclick = () => { S.lagerTab = b.dataset.lagertab; render(); });
+  document.querySelectorAll("[data-lagerabt]").forEach(b =>
+    b.onclick = () => { S.lagerAbt = b.dataset.lagerabt; render(); });
+  if (!el("fAbt")) return;
   el("fAbt").onchange = (e) => { S.adminFilterAbt = e.target.value; render(); };
   el("fStatus").onchange = (e) => { S.adminFilterStatus = e.target.value; render(); };
   document.querySelectorAll("[data-status]").forEach(sel => sel.onchange = async () => {
