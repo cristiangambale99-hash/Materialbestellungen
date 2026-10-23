@@ -103,6 +103,21 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .aussumme span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
 .aussumme b{font-size:18px;color:var(--ink);margin-right:4px}
 .ausleer{margin:10px 0 0}
+.kenn.rot{background:#F8DFDF;color:#8E2B2B}
+.kenn.grau{background:#ECF0F1;color:#5B6B70}
+.dropzone{display:flex;flex-direction:column;align-items:center;gap:3px;
+  margin-top:10px;padding:22px 14px;text-align:center;cursor:pointer;
+  border:2px dashed var(--tuerkis);border-radius:11px;background:var(--tuerkis-l)}
+.dropzone.drueber{background:#d8f0f0}
+.rkopf{display:flex;flex-wrap:wrap;gap:16px;align-items:baseline;
+  border-bottom:1px solid var(--linie);padding-bottom:10px;margin-bottom:4px}
+.rkopf span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
+.rkopf b{font-size:16px;margin-right:5px}
+.uhtab tr.rfehlt td{background:#FCF1F1}
+.uhtab .hinw{display:block;margin-top:3px}
+.uhtab tr.rok td{color:var(--grau)}
+textarea{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--linie);
+  border-radius:9px;background:#fff;resize:vertical}
 .posfoto{width:46px;height:46px;object-fit:cover;border-radius:7px;
   border:1px solid var(--linie);cursor:zoom-in}
 label.foto{display:inline-block;margin-top:3px;cursor:pointer}
@@ -340,6 +355,9 @@ const DB = {
     rpc("bestellung_hauptlager_setzen", { best_id: id, personalnummer: pnr, wert }),
   bilderSetzen: (id, pnr, bilder) =>
     rpc("bestellung_bilder_setzen", { best_id: id, personalnummer: pnr, bilder }),
+  buchZugang: (code) => rpc("buchhaltung_zugang", { code }),
+  rechnungAblegen: (code, rechnung, eintraege) =>
+    rpc("rechnung_ablegen", { code, p_rechnung: rechnung, p_eintraege: eintraege }),
   selbstbesorgungSetzen: (code, nr, codes) =>
     rpc("selbstbesorgung_setzen", { code, objektnummer: nr, artikel: codes }),
   verrechnungErledigt: (code, id) => rpc("verrechnung_erledigt", { code, pos_id: id }),
@@ -637,6 +655,7 @@ const S = {
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
+  rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
   uhTab: "bestellungen", uhOffen: null, uhObjekt: null, uhSuche: "",
   uhObjekte: [], uhVerrechnung: [], uhVerrErledigt: false,
   aktKunde: null,      // laufender Block (PFS)
@@ -868,11 +887,13 @@ function bindLogin() {
         // Solange die neue Zugangsfunktion in der Datenbank fehlt, wird auf den
         // bisherigen Weg zurueckgefallen - der Lagerzugang bleibt so immer offen.
         try { const z = await DB.adminZugang(code); zz = Array.isArray(z) ? z[0] : z; } catch {}
+        if (!zz) { try { const z = await DB.buchZugang(code); zz = Array.isArray(z) ? z[0] : z; } catch {} }
         if (!zz) zz = { rolle: "lager", bestellungen: await DB.adminListe(code) };
         S.adminRolle = zz.rolle || "lager";
         S.adminDaten = zz.bestellungen || [];
         S.uhObjekte = zz.objekte || [];
         S.uhVerrechnung = zz.verrechnung || [];
+        S.rechnungen = zz.rechnungen || [];
         if (S.adminRolle === "uh" && !S.artikel.length) {
           try { S.artikel = await DB.artikel("UH"); } catch {}
         }
@@ -1156,8 +1177,257 @@ function meineView() {
   </div>`).join("");
 }
 
+
+// ---------------------------------------------------------------------------
+// Buchhaltung: Webstar-Rechnungen gegen unsere Bestellungen halten
+// ---------------------------------------------------------------------------
+const BUCH_TABS = [["pruefen", "Rechnung prüfen"], ["rechnungen", "Rechnungen"]];
+
+// Unsere Nummer heisst 500-42833, auf der Rechnung steht oft nur der Teil
+// dahinter. Verglichen wird deshalb der Kern ohne Gruppe und ohne Nullen.
+const nrKern = (s) => String(s || "").trim().toLowerCase().split("-").pop().replace(/^0+/, "");
+const geldZahl = (s) => {
+  const n = parseFloat(String(s || "").replace(/[’'\s]/g, "").replace(",", "."));
+  return isFinite(n) ? n : 0;
+};
+const GELD = /\d{1,3}(?:[’' ]?\d{3})*[.,]\d{2}/g;
+
+// Alles ausser Nummern und Beträgen ist die Bezeichnung.
+const bezeichnung = (zeile, nr, geld) => {
+  let s = zeile.replace(nr, " ");
+  (geld || []).forEach(g => { s = s.replace(g, " "); });
+  return s.replace(/\b\d+([.,]\d+)?\b/g, " ").replace(/[|;]+/g, " ")
+          .replace(/\s{2,}/g, " ").trim() || nr;
+};
+
+// Liest den Text einer Rechnung: Nummer, Datum, Betrag und je Zeile
+// Artikelnummer, Bezeichnung, Menge und Betrag. Steht unsere Bestellnummer
+// in der Zeile oder darüber, wird sie gleich übernommen.
+function rechnungLesen(text, dateiname) {
+  const zeilen = String(text || "").split(/\r?\n/)
+    .map(z => z.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const ganz = zeilen.join("\n");
+  const nummer = (ganz.match(/rechnung(?:s)?[\s-]*(?:nr\.?|nummer)?[:\s]*([A-Za-z0-9][A-Za-z0-9\-\/.]{3,})/i) || [])[1] || "";
+  const d = ganz.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b/);
+  const alleGeld = ganz.match(GELD) || [];
+  const raus = [];
+  let bestNr = "";
+  for (const roh of zeilen) {
+    const b = roh.match(/\bb-\d{3,6}\b/i);
+    if (b) bestNr = b[0].toLowerCase();
+    // Datumsangaben wie 20.10.2026 sehen aus wie ein Betrag und fallen raus.
+    const z = roh.replace(/\b\d{1,2}\.\d{1,2}\.\d{2,4}\b/g, " ");
+    const art = z.match(/\b(\d{3}-[0-9A-Za-z.]+|\d{4,6}(?:\.\d+)?)\b/);
+    const geld = z.match(GELD);
+    if (!art || !geld) continue;
+    // Die Menge ist die letzte ganze Zahl vor dem ersten Betrag; eine
+    // fuehrende Positionsnummer faellt damit heraus.
+    const vorGeld = z.split(geld[0])[0].replace(art[0], " ");
+    const zahlen = vorGeld.match(/\b\d{1,4}\b/g) || [];
+    raus.push({
+      nr: art[1], text: bezeichnung(z, art[0], geld),
+      menge: zahlen.length ? parseInt(zahlen[zahlen.length - 1], 10) : 1,
+      betrag: geldZahl(geld[geld.length - 1]),
+      bestellnr: bestNr,
+    });
+  }
+  return {
+    nummer: nummer || "ohne Nummer",
+    datum: d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : "",
+    betrag: alleGeld.length ? Math.max(...alleGeld.map(geldZahl)) : 0,
+    dateiname: dateiname || "",
+    zeilen: raus,
+  };
+}
+
+// Sucht zu jeder Rechnungszeile die Bestellung und hält fest, ob das
+// Verbrauchsmaterial dem Kunden bereits verrechnet wurde.
+function rechnungAbgleichen(r) {
+  const best = (S.adminDaten || []).filter(b => b.abteilung === "UH");
+  const verr = S.uhVerrechnung || [];
+  r.zeilen.forEach(z => {
+    let b = z.bestellnr
+      ? best.find(x => String(x.nummer).toLowerCase() === z.bestellnr) : null;
+    let pos = b ? (b.positionen || []).find(p => nrKern(p.code) === nrKern(z.nr)) : null;
+    if (!pos) {
+      for (const x of best) {
+        const p = (x.positionen || []).find(p =>
+          nrKern(p.code) === nrKern(z.nr) && Number(p.menge) === Number(z.menge));
+        if (p) { b = x; pos = p; break; }
+      }
+    }
+    const k = b ? (b.kunden || [])[0] || {} : {};
+    z.bestellung = b ? b.nummer : "";
+    z.bestellung_id = b ? b.id : null;
+    z.objektnummer = k.objektnummer || "";
+    z.kundenname = k.kundenname || "";
+    z.code = pos ? pos.code : z.nr;
+    z.name = pos ? (pos.anzeige || pos.name) : z.text;
+    if (!b) { z.art = "keine"; return; }
+    if (!pos) { z.art = "unbestellt"; return; }
+    if (!String(z.code).startsWith("500")) { z.art = "ok"; return; }
+    const v = verr.find(v => String(v.code) === String(z.code)
+      && (v.bestellung_id === b.id || String(v.objektnummer) === String(z.objektnummer)));
+    z.art = !v ? "fehlt" : v.erledigt ? "verrechnet" : "offen";
+  });
+  r.offen = r.zeilen.filter(z => z.art === "fehlt").length;
+  r.ohne_bestellung = r.zeilen.filter(z => z.art === "keine" || z.art === "unbestellt").length;
+  return r;
+}
+
+const skriptLaden = (url) => new Promise((ok, fehler) => {
+  const s = document.createElement("script");
+  s.src = url; s.onload = ok;
+  s.onerror = () => fehler(new Error("Skript nicht geladen"));
+  document.head.appendChild(s);
+});
+
+// Aus dem PDF wird reiner Text; die Zeilen entstehen aus der Höhe auf der
+// Seite, damit Nummer, Bezeichnung und Betrag beieinander bleiben.
+async function pdfText(datei) {
+  const BASIS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  if (!window.pdfjsLib) await skriptLaden(BASIS + "pdf.min.js");
+  if (!window.pdfjsLib) throw new Error("PDF-Leser nicht verfügbar");
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = BASIS + "pdf.worker.min.js";
+  const doc = await window.pdfjsLib.getDocument({ data: await datei.arrayBuffer() }).promise;
+  let text = "";
+  for (let i = 1; i <= doc.numPages; i++) {
+    const inhalt = await (await doc.getPage(i)).getTextContent();
+    const zeilen = new Map();
+    inhalt.items.forEach(it => {
+      const y = Math.round(it.transform[5]);
+      zeilen.set(y, (zeilen.get(y) || "") + " " + it.str);
+    });
+    text += [...zeilen.entries()].sort((a, b) => b[0] - a[0])
+      .map(e => e[1].trim()).join("\n") + "\n";
+  }
+  return text;
+}
+
+async function dateiText(datei) {
+  const name = String(datei.name || "").toLowerCase();
+  if (name.endsWith(".pdf") || datei.type === "application/pdf") return pdfText(datei);
+  return datei.text();
+}
+
+async function rechnungEinlesen(text, dateiname) {
+  S.buchFehler = "";
+  const r = rechnungAbgleichen(rechnungLesen(text, dateiname));
+  if (!r.zeilen.length) {
+    S.buchFehler = "In dieser Datei wurden keine Positionen erkannt. "
+      + "Bitte den Rechnungstext einfügen oder mir die Rechnung einmal zeigen, "
+      + "damit ich den Leser darauf einstelle.";
+    S.rechnung = null;
+  } else {
+    S.rechnung = r;
+  }
+  render();
+}
+
+// --- Ansicht ---------------------------------------------------------------
+const MELDEN = ["fehlt", "keine", "unbestellt"];
+const ART_KENN = {
+  verrechnet: ["gruen", "verrechnet"],
+  offen:      ["warn", "in der Verrechnung"],
+  fehlt:      ["rot", "nicht verrechnet"],
+  keine:      ["rot", "keine Bestellung"],
+  unbestellt: ["rot", "nicht bestellt"],
+  ok:         ["grau", "kein 500er"],
+};
+
+function buchAdminView() {
+  const r = S.rechnung;
+  const ausRechnung = (S.uhVerrechnung || []).filter(v => !v.erledigt && v.rechnung_nr).length;
+  return `<div class="kopfzeile"><div><h1>Buchhaltung</h1>
+      <p class="klein">Rechnungen von Webstar gegen unsere Bestellungen halten</p></div>
+      <button class="btn sek" id="refresh">Aktualisieren</button></div>
+    <div class="kacheln">
+      <div class="kachel"><b>${S.rechnungen.length}</b><span>Rechnungen geprüft</span></div>
+      <div class="kachel"><b>${ausRechnung}</b><span>Offen bei der UH</span></div>
+      <div class="kachel"><b>${r ? r.ohne_bestellung : 0}</b><span>Ohne Bestellung</span></div>
+    </div>
+    <div class="tabs">${BUCH_TABS.map(([k, n]) =>
+      `<button class="${S.buchTab === k ? "an" : ""}" data-buchtab="${k}">${n}</button>`).join("")}</div>
+    ${S.buchTab === "rechnungen" ? buchListeView() : buchPruefView()}`;
+}
+
+function buchPruefView() {
+  const r = S.rechnung;
+  if (!r) return `<div class="karte">
+    <b>Webstar-Rechnung einlesen</b>
+    <p class="klein">PDF, CSV oder Text. Die App sucht zu jeder Zeile die passende
+      Bestellung und zeigt, ob das Verbrauchsmaterial dem Kunden schon verrechnet ist.</p>
+    <label class="dropzone" id="rzone">
+      <input type="file" id="rdatei" accept=".pdf,.csv,.txt,.tsv,text/*,application/pdf" hidden>
+      <b>Datei wählen oder hierhin ziehen</b>
+      <span class="klein">PDF · CSV · TXT</span>
+    </label>
+    <p class="klein fett" style="margin-top:14px">Oder Rechnungstext einfügen</p>
+    <textarea id="rtext" rows="5" placeholder="Rechnungstext hier einfügen"></textarea>
+    <div class="reihe" style="margin-top:8px">
+      <button class="btn" id="rlesen">Abgleichen</button>
+      ${window.DEMO_RECHNUNG ? `<button class="btn sek" id="rbeispiel">Beispiel einsetzen</button>` : ""}
+    </div>
+    ${S.buchFehler ? `<p class="fehler">${esc(S.buchFehler)}</p>` : ""}
+  </div>`;
+
+  const zaehl = (a) => r.zeilen.filter(z => z.art === a).length;
+  const melden = r.zeilen.filter(z => MELDEN.includes(z.art));
+  return `<div class="karte">
+    <div class="rkopf">
+      <span>Rechnung <b>${esc(r.nummer)}</b></span>
+      ${r.datum ? `<span>Datum <b>${esc(datumKurz(r.datum))}</b></span>` : ""}
+      ${r.betrag ? `<span>Betrag <b>CHF ${r.betrag.toFixed(2)}</b></span>` : ""}
+      ${r.dateiname ? `<span>Datei <b>${esc(r.dateiname)}</b></span>` : ""}
+    </div>
+    <p class="klein">${r.zeilen.length} Positionen · ${zaehl("verrechnet")} verrechnet ·
+      ${zaehl("offen")} bereits in der Verrechnung · ${zaehl("fehlt")} nicht verrechnet ·
+      ${zaehl("keine") + zaehl("unbestellt")} nicht bestellt</p>
+
+    <table class="uhtab">
+      <thead><tr><th>Artikel</th><th>Bestellung</th><th class="re">Menge</th>
+        <th class="re">Betrag</th><th>Status</th></tr></thead>
+      <tbody>${r.zeilen.map(z => {
+        const [farbe, text] = ART_KENN[z.art] || ART_KENN.ok;
+        return `<tr class="${MELDEN.includes(z.art) ? "rfehlt" : z.art === "ok" ? "rok" : ""}">
+          <td><span class="code">${esc(z.code)}</span> ${esc(z.name)}</td>
+          <td>${z.bestellung
+              ? `<b>${esc(z.bestellung)}</b><span class="klein" style="display:block">${esc(z.kundenname)}</span>`
+              : `<span class="klein">—</span>`}</td>
+          <td class="re">${z.menge}</td>
+          <td class="re">${z.betrag ? z.betrag.toFixed(2) : ""}</td>
+          <td><span class="kenn ${farbe}">${text}</span></td></tr>`;
+      }).join("")}</tbody></table>
+
+    <div class="reihe" style="margin-top:12px">
+      ${melden.length ? `<button class="btn" id="rmelden"${S.buchLaden ? " disabled" : ""}>
+        ${S.buchLaden ? "Sendet…" : `${melden.length} Positionen an die Unterhaltsreinigung melden`}</button>` : ""}
+      <button class="btn ghost" id="rneu">Andere Rechnung</button>
+    </div>
+    ${melden.length ? `<p class="klein">Diese Positionen erscheinen danach rot in der
+      Verrechnungsliste der Unterhaltsreinigung, mit der Rechnungsnummer dabei.</p>` : ""}
+    ${S.buchFehler ? `<p class="fehler">${esc(S.buchFehler)}</p>` : ""}
+  </div>`;
+}
+
+function buchListeView() {
+  if (!S.rechnungen.length)
+    return `<div class="karte mitte"><p class="klein">Noch keine Rechnung geprüft.</p></div>`;
+  return `<div class="karte"><b>Geprüfte Rechnungen</b>
+    <table class="uhtab">
+      <thead><tr><th>Rechnung</th><th>Datum</th><th class="re">Betrag</th>
+        <th class="re">Gemeldet</th><th class="re">Ohne Bestellung</th></tr></thead>
+      <tbody>${S.rechnungen.map(r => `<tr>
+        <td><b>${esc(r.nummer)}</b><span class="klein">${esc(r.dateiname || "")}</span></td>
+        <td>${esc(datumKurz(r.datum))}</td>
+        <td class="re">${r.betrag ? Number(r.betrag).toFixed(2) : ""}</td>
+        <td class="re">${r.offen}</td>
+        <td class="re">${r.ohne_bestellung}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
 // --- Admin -----------------------------------------------------------------
 function adminView() {
+  if (S.adminRolle === "buchhaltung") return buchAdminView();
   if (S.adminRolle === "uh") return uhAdminView();
   const d = S.adminDaten;
   const z = (s) => d.filter(b=>b.status===s).length;
@@ -1332,14 +1602,18 @@ function uhVerrechnungView() {
   const summe = l.filter(v=>!v.erledigt).reduce((s,v)=>s+v.menge, 0);
   return `<div class="karte">
     <div class="zeile"><div><b>Verbrauchsmaterial zur Verrechnung</b>
-      <p class="klein">Alle Artikel der Gruppe 500 aus freigegebenen Bestellungen · offen: ${summe} Stück</p></div>
+      <p class="klein">Alle Artikel der Gruppe 500 aus freigegebenen Bestellungen · offen: ${summe} Stück${
+        l.filter(v=>!v.erledigt && v.rechnung_nr).length
+          ? ` · davon ${l.filter(v=>!v.erledigt && v.rechnung_nr).length} aus einer Webstar-Rechnung` : ""}</p></div>
       <label class="klein schalter"><input type="checkbox" id="vErl"${S.uhVerrErledigt?" checked":""}> erledigte anzeigen</label></div>
     ${l.length ? `<table class="uhtab">
       <thead><tr><th>Datum</th><th>Objekt</th><th>Artikel</th><th class="re">Menge</th><th></th></tr></thead>
-      <tbody>${l.map(v=>`<tr${v.erledigt?' class="erl"':""}>
-        <td>${esc(v.datum)}</td>
+      <tbody>${l.map(v=>`<tr${v.erledigt?' class="erl"':(v.rechnung_nr?' class="rfehlt"':"")}>
+        <td>${esc(v.datum)}${v.rechnung_nr
+          ? `<span class="kenn rot">Rechnung ${esc(v.rechnung_nr)}</span>` : ""}</td>
         <td><b>${esc(v.kundenname)}</b><span class="klein"> ${esc(v.objektnummer)}</span></td>
-        <td><span class="code">${esc(v.code)}</span> ${esc(v.name)}</td>
+        <td><span class="code">${esc(v.code)}</span> ${esc(v.name)}
+          ${v.hinweis ? `<span class="klein hinw">${esc(v.hinweis)}</span>` : ""}</td>
         <td class="re">${v.menge}</td>
         <td class="re">${v.erledigt
           ? `<span class="kenn gruen">verrechnet</span>`
@@ -2304,6 +2578,69 @@ async function mailVersand(best, doc, ziel, extra) {
   return false;
 }
 
+
+// ---------------------------------------------------------------------------
+// Ereignisse Buchhaltung
+// ---------------------------------------------------------------------------
+function bindBuch() {
+  document.querySelectorAll("[data-buchtab]").forEach(b =>
+    b.onclick = () => { S.buchTab = b.dataset.buchtab; render(); });
+
+  const zone = el("rzone"), datei = el("rdatei");
+  if (datei) datei.onchange = async () => {
+    const f = datei.files && datei.files[0];
+    if (!f) return;
+    try { await rechnungEinlesen(await dateiText(f), f.name); }
+    catch (e) { S.buchFehler = "Datei nicht lesbar: " + e.message; render(); }
+  };
+  if (zone) {
+    zone.ondragover = (e) => { e.preventDefault(); zone.classList.add("drueber"); };
+    zone.ondragleave = () => zone.classList.remove("drueber");
+    zone.ondrop = async (e) => {
+      e.preventDefault(); zone.classList.remove("drueber");
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      try { await rechnungEinlesen(await dateiText(f), f.name); }
+      catch (err) { S.buchFehler = "Datei nicht lesbar: " + err.message; render(); }
+    };
+  }
+  if (el("rlesen")) el("rlesen").onclick = () => {
+    const t = el("rtext") ? el("rtext").value : "";
+    if (!t.trim()) { S.buchFehler = "Bitte eine Datei wählen oder den Text einfügen."; return render(); }
+    rechnungEinlesen(t, "eingefügter Text");
+  };
+  if (el("rbeispiel")) el("rbeispiel").onclick = () => {
+    if (el("rtext")) el("rtext").value = window.DEMO_RECHNUNG;
+  };
+  if (el("rneu")) el("rneu").onclick = () => { S.rechnung = null; S.buchFehler = ""; render(); };
+
+  if (el("rmelden")) el("rmelden").onclick = async () => {
+    const r = S.rechnung;
+    const eintraege = r.zeilen.filter(z => MELDEN.includes(z.art)).map(z => ({
+      bestellung_id: z.bestellung_id, objektnummer: z.objektnummer,
+      kundenname: z.kundenname || "Unbekannt", code: z.code, name: z.name,
+      menge: z.menge,
+      hinweis: z.art === "keine" ? "Auf der Rechnung, keine Bestellung gefunden"
+        : z.art === "unbestellt" ? "Auf der Rechnung, in dieser Bestellung nicht enthalten"
+        : "Auf der Rechnung, beim Kunden noch nicht verrechnet",
+    }));
+    S.buchLaden = true; S.buchFehler = ""; render();
+    try {
+      await DB.rechnungAblegen(S.adminCode, {
+        nummer: r.nummer, datum: r.datum || null, betrag: r.betrag || null,
+        dateiname: r.dateiname, positionen: r.zeilen,
+        offen: r.offen, ohne_bestellung: r.ohne_bestellung,
+      }, eintraege);
+      const z = await DB.buchZugang(S.adminCode);
+      const zz = Array.isArray(z) ? z[0] : z;
+      S.uhVerrechnung = (zz && zz.verrechnung) || S.uhVerrechnung;
+      S.rechnungen = (zz && zz.rechnungen) || S.rechnungen;
+      S.rechnung = null; S.buchTab = "rechnungen";
+    } catch (e) { S.buchFehler = "Nicht gespeichert: " + e.message; }
+    S.buchLaden = false; render();
+  };
+}
+
 // --- Admin -----------------------------------------------------------------
 function bindAdmin() {
   bindGemeinsam();
@@ -2311,6 +2648,7 @@ function bindAdmin() {
     try { S.adminDaten = await DB.adminListe(S.adminCode); } catch { S.fehler = t("ladefehler"); }
     render();
   };
+  if (S.adminRolle === "buchhaltung") return bindBuch();
   if (S.adminRolle === "uh") return bindUhAdmin();
   document.querySelectorAll("[data-amenge]").forEach(inp => {
     inp.onchange = () => {
