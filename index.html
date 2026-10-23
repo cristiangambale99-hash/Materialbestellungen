@@ -93,6 +93,32 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .vorschau{margin-top:10px;background:#F6F9F9;border:1px solid var(--linie);border-radius:9px;padding:10px 12px}
 .vorschau pre{margin:6px 0 0;white-space:pre-wrap;font:inherit;font-size:12.5px;color:#3C3C3B}
 .uhtab{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.ausfilter{display:flex;flex-direction:column;gap:10px}
+.ausreihe{display:flex;flex-wrap:wrap;gap:8px}
+.ausfeld{display:flex;flex-direction:column;gap:3px;flex:1 1 150px;min-width:138px}
+.ausfeld label{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--grau)}
+.ausfeld input,.ausfeld select{width:100%}
+.aussumme{display:flex;flex-wrap:wrap;gap:16px;align-items:baseline;
+  border-top:1px solid var(--linie);padding-top:10px;margin-top:2px}
+.aussumme span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
+.aussumme b{font-size:18px;color:var(--ink);margin-right:4px}
+.ausleer{margin:10px 0 0}
+.monat{margin-top:10px}
+.monatkopf{display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;
+  background:#fff;border:1px solid var(--linie);border-radius:9px;
+  padding:11px 13px;font:inherit;color:var(--ink);text-align:left}
+.monatkopf:hover{border-color:var(--tuerkis)}
+.monat.an .monatkopf{background:var(--tuerkis-l);border-color:var(--tuerkis)}
+.monatkopf .pfeil{color:var(--tuerkis);font-size:11px;width:11px}
+.monatkopf .flex1{flex:1;font-size:14px}
+.monatkopf .zahl{font-size:11.5px;color:var(--grau);white-space:nowrap}
+.monat .karte{margin-top:8px}
+/* Auf dem Handy weicht der Balken, damit Name und Zahlen Platz haben. */
+@media (max-width:560px){
+  .sumzeile{gap:8px}
+  .sumzeile .sp.bal{display:none}
+  .sumkopf .sumzeile{font-size:9.5px;letter-spacing:.04em}
+}
 .uhtab th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--grau);padding:6px 8px;border-bottom:1px solid var(--linie)}
 .uhtab td{padding:7px 8px;border-bottom:1px solid var(--linie);vertical-align:top}
 .uhtab tr.erl td{color:var(--grau)}
@@ -577,7 +603,8 @@ const S = {
   fahrzeug: "",
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
-  uhTab: "bestellungen", uhObjekt: null, uhSuche: "",
+  aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
+  uhTab: "bestellungen", uhOffen: null, uhObjekt: null, uhSuche: "",
   uhObjekte: [], uhVerrechnung: [], uhVerrErledigt: false,
   aktKunde: null,      // laufender Block (PFS)
   positionen: [],      // ohne Kundenbezug (SPEZ / Springer)
@@ -1158,10 +1185,43 @@ function uhAdminView() {
 }
 
 // --- Bestellungen ----------------------------------------------------------
+// Nach Monat gruppiert, damit die Liste auch nach einem Jahr uebersichtlich
+// bleibt. Welche Monate offen sind, steht im Zustand und ueberlebt deshalb
+// jedes Neuzeichnen.
+const monatText = (k) => {
+  const [j, m] = String(k).split("-");
+  return MONAT_NAME[+m - 1] ? `${MONAT_NAME[+m - 1]} ${j}` : "Ohne Datum";
+};
+
+function nachMonat(liste) {
+  const m = new Map();
+  for (const b of liste) {
+    const k = String(b.erstellt_am || "").slice(0, 7) || "—";
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(b);
+  }
+  return [...m.entries()].sort((a, b) => a[0] < b[0] ? 1 : -1);
+}
+
 function uhBestellView() {
   const l = uhBestellungen();
   if (!l.length) return `<div class="karte mitte"><p class="klein">Keine Bestellungen.</p></div>`;
-  return l.map(uhKarte).join("");
+  const monate = nachMonat(l);
+  if (!S.uhOffen) S.uhOffen = { [monate[0][0]]: true };
+  return monate.map(([k, best]) => {
+    const offen = !!S.uhOffen[k];
+    const artikel = best.reduce((n, b) =>
+      n + (b.positionen || []).reduce((x, p) => x + p.menge, 0), 0);
+    return `<div class="monat ${offen ? "an" : ""}">
+      <button class="monatkopf" data-uhmonat="${esc(k)}">
+        <span class="pfeil">${offen ? "▼" : "►"}</span>
+        <b class="flex1">${esc(monatText(k))}</b>
+        <span class="zahl">${best.length} ${best.length === 1 ? "Bestellung" : "Bestellungen"}
+          · ${artikel} Artikel</span>
+      </button>
+      ${offen ? best.map(uhKarte).join("") : ""}
+    </div>`;
+  }).join("");
 }
 
 function uhKarte(b) {
@@ -1323,14 +1383,180 @@ function auswertungTabelle(titel, daten, spalte) {
     </tbody></table></div>`;
 }
 
+// --- Filter der Auswertung -------------------------------------------------
+// Einzige Wahrheit ist der Zeitraum von/bis. Schnellwahl, Jahr und Monat
+// setzen nur diese beiden Werte, damit sich jede Einschraenkung frei mit
+// den Datumsfeldern nachjustieren laesst.
+const MONAT_NAME = ["Januar","Februar","März","April","Mai","Juni","Juli",
+                    "August","September","Oktober","November","Dezember"];
+const tagIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-`
+                    + `${String(d.getDate()).padStart(2, "0")}`;
+const monatVon = (j, m) => tagIso(new Date(j, m, 1));
+const monatBis = (j, m) => tagIso(new Date(j, m + 1, 0));
+
+function ausZeitraum(art) {
+  const h = new Date(), j = h.getFullYear(), m = h.getMonth();
+  if (art === "monat")    return [monatVon(j, m), monatBis(j, m)];
+  if (art === "vormonat") return [monatVon(j, m - 1), monatBis(j, m - 1)];
+  if (art === "jahr")     return [`${j}-01-01`, `${j}-12-31`];
+  if (art === "vorjahr")  return [`${j - 1}-01-01`, `${j - 1}-12-31`];
+  return ["", ""];
+}
+
+// Schraenkt die Bestellungen ein. Ist eine Artikelgruppe gewaehlt, bleiben
+// nur deren Positionen stehen, damit auch die Mengen pro Artikel stimmen.
+function ausGefiltert(liste) {
+  const f = S.aus, q = (f.suche || "").trim().toLowerCase();
+  return liste.filter(b => {
+    const tag = String(b.erstellt_am || "").slice(0, 10);
+    if (f.von && tag && tag < f.von) return false;
+    if (f.bis && tag && tag > f.bis) return false;
+    if (f.status && b.status !== f.status) return false;
+    if (!q) return true;
+    const heu = [b.nummer, b.mitarbeiter, b.fahrzeug, b.lieferadresse]
+      .concat((b.kunden || []).map(k => `${k.kundenname} ${k.objektnummer}`))
+      .concat((b.positionen || []).map(p => `${p.code || ""} ${artAnzeige(p)}`))
+      .join(" ").toLowerCase();
+    return heu.includes(q);
+  }).map(b => !f.kat ? b
+    : { ...b, positionen: (b.positionen || [])
+          .filter(p => String(p.code || "").split("-")[0] === f.kat) })
+    .filter(b => (b.positionen || []).length);
+}
+
+function ausFilterLeiste(liste, gefiltert) {
+  const f = S.aus;
+  const jahre = [...new Set(liste.map(b => String(b.erstellt_am || "").slice(0, 4))
+    .filter(Boolean))].sort().reverse();
+  const kats = [...new Set(liste.flatMap(b => (b.positionen || [])
+    .map(p => String(p.code || "").split("-")[0])).filter(Boolean))].sort();
+  const stati = [...new Set(liste.map(b => b.status).filter(Boolean))];
+  const gleich = (a) => { const [v, bi] = ausZeitraum(a); return f.von === v && f.bis === bi; };
+  const chip = (a, name) =>
+    `<button class="wahl ${gleich(a) ? "an" : ""}" data-ausbereich="${a}">${name}</button>`;
+
+  // Jahr und Monat werden aus von/bis zurueckgelesen, damit die Auswahl auch
+  // nach einer Korrektur in den Datumsfeldern stimmt.
+  const jahrAktiv = (f.von && f.bis && f.von.slice(0, 4) === f.bis.slice(0, 4))
+    ? f.von.slice(0, 4) : "";
+  const monatAktiv = (jahrAktiv
+    && f.von === monatVon(+jahrAktiv, +f.von.slice(5, 7) - 1)
+    && f.bis === monatBis(+jahrAktiv, +f.von.slice(5, 7) - 1))
+    ? String(+f.von.slice(5, 7) - 1) : "";
+
+  const menge = gefiltert.reduce((n, b) =>
+    n + (b.positionen || []).reduce((x, p) => x + p.menge, 0), 0);
+
+  return `<div class="karte ausfilter">
+    <div class="auschips reihe">
+      ${chip("alles", "Alles")}${chip("monat", "Dieser Monat")}
+      ${chip("vormonat", "Letzter Monat")}${chip("jahr", "Dieses Jahr")}
+      ${chip("vorjahr", "Letztes Jahr")}
+    </div>
+    <div class="ausreihe">
+      <div class="ausfeld"><label for="ausJahr">Jahr</label>
+        <select id="ausJahr"><option value="">Alle Jahre</option>${jahre.map(j =>
+          `<option value="${j}"${j === jahrAktiv ? " selected" : ""}>${j}</option>`).join("")}</select></div>
+      <div class="ausfeld"><label for="ausMonat">Monat</label>
+        <select id="ausMonat"${jahrAktiv ? "" : " disabled"}><option value="">Alle Monate</option>${
+          MONAT_NAME.map((n, i) =>
+            `<option value="${i}"${String(i) === monatAktiv ? " selected" : ""}>${n}</option>`).join("")}</select></div>
+      <div class="ausfeld"><label for="ausVon">Von</label>
+        <input type="date" id="ausVon" value="${esc(f.von)}"></div>
+      <div class="ausfeld"><label for="ausBis">Bis</label>
+        <input type="date" id="ausBis" value="${esc(f.bis)}"></div>
+    </div>
+    <div class="ausreihe">
+      <div class="ausfeld" style="flex:2 1 220px"><label for="ausSuche">Suche</label>
+        <input type="search" id="ausSuche" value="${esc(f.suche)}"
+               placeholder="Mitarbeiterin, Objekt, Artikel oder Bestellnummer"></div>
+      <div class="ausfeld"><label for="ausKat">Artikelgruppe</label>
+        <select id="ausKat"><option value="">Alle Gruppen</option>${kats.map(k =>
+          `<option value="${esc(k)}"${k === f.kat ? " selected" : ""}>${esc(katName(k))}</option>`).join("")}</select></div>
+      <div class="ausfeld"><label for="ausStatus">Status</label>
+        <select id="ausStatus"><option value="">Alle Status</option>${stati.map(st =>
+          `<option value="${esc(st)}"${st === f.status ? " selected" : ""}>${esc(t(STATUS_LABEL[st]) || st)}</option>`).join("")}</select></div>
+    </div>
+    <div class="aussumme">
+      <span><b>${gefiltert.length}</b>${gefiltert.length === 1 ? "Bestellung" : "Bestellungen"}</span>
+      <span><b>${menge}</b>Artikel total</span>
+      <span>${f.von || f.bis ? `${f.von ? datumKurz(f.von) : "Anfang"} bis ${f.bis ? datumKurz(f.bis) : "heute"}` : "Ganzer Zeitraum"}</span>
+      <button class="btn sek" id="ausCsv" style="margin-left:auto">Als CSV</button>
+    </div>
+  </div>`;
+}
+
+// Eine Zeile je Position, damit die Liste in Excel frei weiterverarbeitet
+// werden kann.
+function ausCsv(liste, abt) {
+  const zeilen = [["Datum", "Bestellnummer", "Status", "Abteilung", "Mitarbeiterin",
+                   "Objekt", "Objektnummer", "Artikelnummer", "Artikel", "Menge"]];
+  for (const b of liste) {
+    const ziele = (b.kunden && b.kunden.length) ? b.kunden
+      : [{ kundenname: b.fahrzeug || b.lieferadresse || "", objektnummer: "" }];
+    for (const k of ziele) {
+      for (const p of (b.positionen || [])
+        .filter(p => p.block_id == null || p.block_id === k.block_id)) {
+        zeilen.push([String(b.erstellt_am || "").slice(0, 10), b.nummer,
+          t(STATUS_LABEL[b.status]) || b.status, abtName(b.abteilung), b.mitarbeiter,
+          k.kundenname, k.objektnummer, p.code || "", artAnzeige(p), p.menge]);
+      }
+    }
+  }
+  const text = "\uFEFF" + zeilen.map(z => z
+    .map(w => `"${String(w == null ? "" : w).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  a.download = `Auswertung_${abt}_${S.aus.von || "alles"}${S.aus.bis ? "_" + S.aus.bis : ""}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function bindAuswertung() {
+  const setzen = (v, b) => { S.aus.von = v; S.aus.bis = b; render(); };
+  document.querySelectorAll("[data-ausbereich]").forEach(b =>
+    b.onclick = () => { const [v, bi] = ausZeitraum(b.dataset.ausbereich); setzen(v, bi); });
+  if (el("ausVon")) el("ausVon").onchange = (e) => { S.aus.von = e.target.value; render(); };
+  if (el("ausBis")) el("ausBis").onchange = (e) => { S.aus.bis = e.target.value; render(); };
+  if (el("ausJahr")) el("ausJahr").onchange = (e) => {
+    const j = e.target.value;
+    if (!j) return setzen("", "");
+    const m = el("ausMonat") && el("ausMonat").value;
+    return m === "" || m == null ? setzen(`${j}-01-01`, `${j}-12-31`)
+                                 : setzen(monatVon(+j, +m), monatBis(+j, +m));
+  };
+  if (el("ausMonat")) el("ausMonat").onchange = (e) => {
+    const j = el("ausJahr") && el("ausJahr").value;
+    if (!j) return;
+    const m = e.target.value;
+    return m === "" ? setzen(`${j}-01-01`, `${j}-12-31`)
+                    : setzen(monatVon(+j, +m), monatBis(+j, +m));
+  };
+  if (el("ausKat")) el("ausKat").onchange = (e) => { S.aus.kat = e.target.value; render(); };
+  if (el("ausStatus")) el("ausStatus").onchange = (e) => { S.aus.status = e.target.value; render(); };
+  const s = el("ausSuche");
+  if (s) s.oninput = () => {
+    S.aus.suche = s.value; const p = s.selectionStart; render();
+    const n = el("ausSuche"); if (n) { n.focus(); n.setSelectionRange(p, p); }
+  };
+  if (el("ausCsv")) el("ausCsv").onclick = () => ausCsv(S.ausListe || [], S.ausAbt || "UH");
+}
+
 // Auswertung einer Abteilung: immer nach Mitarbeiterin, dazu nach Objekt
 // beziehungsweise bei der Spezialreinigung nach Fahrzeug.
 function auswertungAbteilung(liste, abt) {
+  const gefiltert = ausGefiltert(liste);
+  S.ausListe = gefiltert; S.ausAbt = abt;
+  const kopf = ausFilterLeiste(liste, gefiltert);
   if (!liste.length) return `<div class="karte mitte"><p class="klein">Keine Bestellungen.</p></div>`;
+  if (!gefiltert.length) return `${kopf}
+    <div class="karte mitte"><p class="klein ausleer">Keine Bestellungen in dieser Auswahl.</p></div>`;
+  liste = gefiltert;
   const zweite = abt === "SPEZ"
     ? ["Menge pro Fahrzeug", auswertungDaten(liste, nachFahrzeug), "Fahrzeug"]
     : ["Menge pro Objekt", auswertungDaten(liste, nachObjekt), "Objekt"];
-  return `<p class="klein" style="margin-bottom:8px">Zeile anklicken für die Mengen pro Artikel.</p>
+  return `${kopf}
+    <p class="klein" style="margin-bottom:8px">Zeile anklicken für die Mengen pro Artikel.</p>
     ${auswertungTabelle("Menge pro Mitarbeiterin", auswertungDaten(liste, nachMitarbeiter), "Mitarbeiterin")}
     ${auswertungTabelle(zweite[0], zweite[1], zweite[2])}`;
 }
@@ -1440,6 +1666,13 @@ function bindUhAdmin() {
     } catch { S.fehler = t("adminFehler"); }
     render();
   };
+  bindAuswertung();
+  document.querySelectorAll("[data-uhmonat]").forEach(b =>
+    b.onclick = () => {
+      const k = b.dataset.uhmonat;
+      S.uhOffen = { ...(S.uhOffen || {}), [k]: !(S.uhOffen || {})[k] };
+      render();
+    });
   document.querySelectorAll("[data-uhtab]").forEach(b =>
     b.onclick = () => { S.uhTab = b.dataset.uhtab; render(); });
 
@@ -1958,6 +2191,7 @@ function bindAdmin() {
       render();
     };
   });
+  bindAuswertung();
   document.querySelectorAll("[data-lagertab]").forEach(b =>
     b.onclick = () => { S.lagerTab = b.dataset.lagertab; render(); });
   document.querySelectorAll("[data-lagerabt]").forEach(b =>
