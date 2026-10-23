@@ -103,6 +103,18 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .aussumme span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
 .aussumme b{font-size:18px;color:var(--ink);margin-right:4px}
 .ausleer{margin:10px 0 0}
+.posfoto{width:46px;height:46px;object-fit:cover;border-radius:7px;
+  border:1px solid var(--linie);cursor:zoom-in}
+label.foto{display:inline-block;margin-top:3px;cursor:pointer}
+.fotos{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.fotos figure{margin:0;width:92px}
+.fotos img{width:92px;height:92px;object-fit:cover;border-radius:8px;
+  border:1px solid var(--linie);cursor:zoom-in}
+.fotos figcaption{margin-top:3px;font-size:11px;color:var(--grau);line-height:1.25}
+.hlbox{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:11px 13px;
+  background:var(--tuerkis-l);border:1px solid var(--tuerkis);border-radius:9px}
+.hlbox input{margin-top:2px}
+.hlbox span.klein{display:block;margin-top:3px}
 .monat{margin-top:10px}
 .monatkopf{display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;
   background:#fff;border:1px solid var(--linie);border-radius:9px;
@@ -309,12 +321,25 @@ const DB = {
   artikel: (abteilung) =>
     tabelle(`artikel?abteilung=eq.${abteilung}&aktiv=is.true&select=code,kategorie,name_de,name_es,name_pt,name_it&order=kategorie,name_de`),
   objekteSuche: (abteilung, q) =>
-    tabelle(`kunden_objekte?abteilungen=cs.{${abteilung}}&aktiv=is.true&or=(kundenname.ilike.*${encodeURIComponent(q)}*,objektnummer.ilike.${encodeURIComponent(q)}*)&select=objektnummer,kundenname,adresse&limit=60`),
+    tabelle(`kunden_objekte?abteilungen=cs.{${abteilung}}&aktiv=is.true&or=(kundenname.ilike.*${encodeURIComponent(q)}*,objektnummer.ilike.${encodeURIComponent(q)}*)&select=objektnummer,kundenname,adresse,hauptlager&limit=60`),
   fahrzeuge: () => tabelle(`fahrzeuge?aktiv=is.true&select=*&order=nr`),
   bestellungAnlegen: (daten) => rpc("bestellung_anlegen", { daten }),
   meineBestellungen: (pnr) => rpc("meine_bestellungen_v2", { pnr }),
-  adminListe: (code) => rpc("bestellungen_liste_v2", { code }),
-  adminZugang: (code) => rpc("admin_zugang_v3", { code }),
+  // Die Liste kommt ueber denselben Weg wie der Adminzugang, damit auch das
+  // Kennzeichen Hauptlager und allfaellige Fotos erhalten bleiben und damit
+  // der UH-Code funktioniert.
+  adminListe: async (code) => {
+    const z = await rpc("admin_zugang_v4", { code });
+    const zz = Array.isArray(z) ? z[0] : z;
+    return (zz && zz.bestellungen) || [];
+  },
+  adminZugang: (code) => rpc("admin_zugang_v4", { code }),
+  hauptlagerSetzen: (code, nr, wert) =>
+    rpc("objekt_hauptlager_setzen", { code, p_objektnummer: nr, p_wert: wert }),
+  bestHauptlager: (id, pnr, wert) =>
+    rpc("bestellung_hauptlager_setzen", { best_id: id, personalnummer: pnr, wert }),
+  bilderSetzen: (id, pnr, bilder) =>
+    rpc("bestellung_bilder_setzen", { best_id: id, personalnummer: pnr, bilder }),
   selbstbesorgungSetzen: (code, nr, codes) =>
     rpc("selbstbesorgung_setzen", { code, objektnummer: nr, artikel: codes }),
   verrechnungErledigt: (code, id) => rpc("verrechnung_erledigt", { code, pos_id: id }),
@@ -344,6 +369,8 @@ const T = {
     anmelden: "Anmelden", pnr: "Personalnummer", pnrPh: "z. B. 25743",
     pnrFehler: "Personalnummer nicht gefunden.",
     bestaetigenFrage: "Du meldest dich an als", jaIchBin: "Ja, das bin ich", abbrechen: "Abbrechen",
+    hinweisHauptlager: "Das Material wird in unserem Hauptlager zusammengestellt und anschliessend zum Objekt geliefert.",
+    fotoNeu: "Foto hinzufügen", fotoAendern: "Foto ändern", fotoTitel: "Foto zum Artikel",
     adminLink: "Admin-Zugang", zurueckLogin: "Zurück zur Anmeldung",
     adminTitel: "Admin-Zugang", adminCode: "Zugangscode", adminCodePh: "Zugangscode eingeben",
     zugreifen: "Zugreifen", adminFehler: "Zugangscode falsch.",
@@ -399,6 +426,8 @@ const T = {
     anmelden: "Iniciar sesión", pnr: "N.º de personal", pnrPh: "p. ej. 25743",
     pnrFehler: "Número de personal no encontrado.",
     bestaetigenFrage: "Vas a iniciar sesión como", jaIchBin: "Sí, soy yo", abbrechen: "Cancelar",
+    hinweisHauptlager: "El material se prepara en nuestro almacén central y se entrega después al objeto.",
+    fotoNeu: "Añadir foto", fotoAendern: "Cambiar foto", fotoTitel: "Foto del artículo",
     adminLink: "Acceso admin", zurueckLogin: "Volver al inicio de sesión",
     adminTitel: "Acceso admin", adminCode: "Código de acceso", adminCodePh: "Introduce el código",
     zugreifen: "Acceder", adminFehler: "Código incorrecto.",
@@ -454,6 +483,8 @@ const T = {
     anmelden: "Iniciar sessão", pnr: "N.º de funcionário", pnrPh: "ex. 25743",
     pnrFehler: "Número de funcionário não encontrado.",
     bestaetigenFrage: "Vais iniciar sessão como", jaIchBin: "Sim, sou eu", abbrechen: "Cancelar",
+    hinweisHauptlager: "O material é preparado no nosso armazém central e depois entregue ao objeto.",
+    fotoNeu: "Adicionar foto", fotoAendern: "Alterar foto", fotoTitel: "Foto do artigo",
     adminLink: "Acesso admin", zurueckLogin: "Voltar ao início de sessão",
     adminTitel: "Acesso admin", adminCode: "Código de acesso", adminCodePh: "Introduz o código",
     zugreifen: "Aceder", adminFehler: "Código incorreto.",
@@ -509,6 +540,8 @@ const T = {
     anmelden: "Accedi", pnr: "N. personale", pnrPh: "es. 25743",
     pnrFehler: "Numero di personale non trovato.",
     bestaetigenFrage: "Stai accedendo come", jaIchBin: "Sì, sono io", abbrechen: "Annulla",
+    hinweisHauptlager: "Il materiale viene preparato nel nostro magazzino centrale e poi consegnato all'oggetto.",
+    fotoNeu: "Aggiungi foto", fotoAendern: "Cambia foto", fotoTitel: "Foto dell'articolo",
     adminLink: "Accesso admin", zurueckLogin: "Torna all'accesso",
     adminTitel: "Accesso admin", adminCode: "Codice di accesso", adminCodePh: "Inserisci il codice",
     zugreifen: "Accedi", adminFehler: "Codice errato.",
@@ -1034,8 +1067,12 @@ function materialView(ziel, block) {
   if (!freitextErlaubt()) return h;
   h += `<div class="kat"><div class="kat-kopf"><div><b>${t("freitextTitel")}</b><span class="klein">${t("freitextHinweis")}</span></div></div>`;
   ziel.filter(p=>p.freitext).forEach((p,i)=>{
-    h += `<div class="pos"><div class="pos-info"><div><b>${esc(p.name)}</b>
-      ${p.original ? `<span class="klein">${t("freitextUebersetzt")}: ${esc(p.original)}</span>` : ""}</div></div>
+    h += `<div class="pos"><div class="pos-info">
+      ${p.bild ? `<img src="${p.bild}" alt="" class="posfoto fotozoom">` : ""}
+      <div><b>${esc(p.name)}</b>
+      ${p.original ? `<span class="klein">${t("freitextUebersetzt")}: ${esc(p.original)}</span>` : ""}
+      <label class="link foto">${p.bild ? t("fotoAendern") : t("fotoNeu")}
+        <input type="file" accept="image/*" data-foto="${pref}:${i}" hidden></label></div></div>
       <input type="number" min="1" value="${p.menge}" data-menge="${pref}" data-kat="frei" data-i="${i}">
       <button class="link rot" data-rm="${pref}" data-kat="frei" data-i="${i}">✕</button></div>`;
   });
@@ -1098,7 +1135,10 @@ function erfolgView() {
     <p class="klein">${t("erfolgInfo")}</p>
     ${pfsLieferung() ? `<div class="info"><p class="klein">${
       S.lieferWahl === "hause" ? t("hinweisLieferung") : t("hinweisAbholung")}</p></div>` : ""}
-    ${uhFreigabe() ? `<div class="info"><p class="klein">${t("hinweisKontrolle")}</p></div>` : ""}
+    ${uhFreigabe() ? `<div class="info"><p class="klein">${
+      S.gesendet && S.gesendet.hauptlager ? t("hinweisHauptlager")
+      : S.gesendet && S.gesendet.pruefung && S.gesendet.pruefung.auffaellig ? t("hinweisPruefung")
+      : t("hinweisKontrolle")}</p></div>` : ""}
     ${S.mailFehler ? `<p class="klein orange">${t("mailWarnung")}</p>` : ""}
     <div class="reihe mitte">
       <button class="btn sek" id="pdf">${t("pdfBtn")}</button>
@@ -1248,6 +1288,7 @@ function uhKarte(b) {
         <td class="re">× ${p.menge}</td></tr>`;
     }).join("")}</table>
 
+    ${fotoWand(b)}
     ${bitte.length ? `<div class="hinweisbox warn">
       <b>Meldung an den Kunden: bitte selbst besorgen</b>
       <p class="klein">${bitte.map(p=>esc(p.name)+" × "+p.menge).join(" · ")}</p></div>` : ""}
@@ -1318,18 +1359,29 @@ function uhObjekteView() {
   const o = S.uhObjekte.find(x => x.objektnummer === S.uhObjekt);
   return `<div class="karte">
     <b>Objekt wählen</b>
-    <p class="klein">Pro Objekt festlegen, welche Artikel der Kunde selbst besorgt. Bestellt die Mitarbeiterin einen davon, erhält der Kunde die Meldung «bitte selbst besorgen».</p>
+    <p class="klein">Pro Objekt festlegen, welches Verbrauchsmaterial der Kunde selbst besorgt, und ob die Lieferung über unser Hauptlager läuft statt über Webstar.</p>
     <div class="suchfeld"><input id="uhSuche" value="${esc(S.uhSuche)}" placeholder="Objektnummer oder Name filtern" autocomplete="off"></div>
     <p class="klein">${alle.length} von ${S.uhObjekte.length} Kunden${tr.length < alle.length ? ` · erste ${tr.length} angezeigt` : ""}</p>
     ${tr.length ? `<div class="treffer kundenliste">${tr.map(x=>`<button class="eintrag" data-uhobj="${esc(x.objektnummer)}">
         <span class="flex1"><b>${esc(x.kundenname)}</b><span class="klein"> Objekt-Nr. ${esc(x.objektnummer)}</span></span>
+        ${x.hauptlager?`<span class="kenn info">Hauptlager</span>`:""}
         ${x.selbstbesorgung.length?`<span class="kenn warn">${x.selbstbesorgung.length} selbst</span>`:""}</button>`).join("")}</div>` : ""}
   </div>
   ${o ? `<div class="karte">
     <div class="zeile"><div><b>${esc(o.kundenname)}</b>
       <p class="klein">Objekt-Nr. ${esc(o.objektnummer)}${o.kunden_mail?" · "+esc(o.kunden_mail):""}</p></div>
       <span class="kenn info">${o.selbstbesorgung.length} selbst besorgt</span></div>
-    <table class="uhtab"><tbody>${S.artikel.map(a=>`<tr>
+
+    <label class="hlbox">
+      <input type="checkbox" id="hlSchalter"${o.hauptlager?" checked":""}>
+      <span><b>Lieferung durch das Hauptlager</b>
+        <span class="klein">Die Bestellung geht nicht an Webstar, sondern zum Lagerist.
+          Sobald er sie vorbereitet hat, meldet die App das an unterhalt@clean-service.ch
+          zum Disponieren.</span></span>
+    </label>
+
+    <p class="klein fett" style="margin-top:14px">Der Kunde besorgt selbst</p>
+    <table class="uhtab"><tbody>${S.artikel.filter(a=>a.kategorie==="500").map(a=>`<tr>
       <td style="width:34px"><input type="checkbox" data-sb="${esc(a.code)}"${o.selbstbesorgung.includes(a.code)?" checked":""}></td>
       <td class="code">${esc(a.code)}</td><td>${esc(artName(a))}</td>
       <td class="re klein">${esc(katName(a.kategorie))}</td></tr>`).join("")}</tbody></table>
@@ -1575,6 +1627,15 @@ function lagerAuswertungView() {
     ${auswertungAbteilung(liste, abt)}`;
 }
 
+// Die Fotos, welche die Mitarbeiterin zum Freitext mitgegeben hat.
+function fotoWand(b) {
+  const bilder = Array.isArray(b.bilder) ? b.bilder : [];
+  if (!bilder.length) return "";
+  return `<div class="fotos">${bilder.map(f => `<figure>
+    <img src="${f.bild}" alt="" class="fotozoom">
+    <figcaption>${esc(f.name || "")}</figcaption></figure>`).join("")}</div>`;
+}
+
 function adminKarte(b) {
   const ziel = b.fahrzeug || (b.kunden.length ? b.kunden.map(k=>k.kundenname).join(", ") : b.lieferadresse || "—");
   const bk = b.beekeeper_status
@@ -1582,7 +1643,7 @@ function adminKarte(b) {
   return `<div class="karte">
     <div class="zeile">
       <div><span class="code">${esc(b.nummer)}</span> <span class="tag">${esc(b.abteilung)}</span>
-        <b>${esc(ziel)}</b>
+        <b>${esc(ziel)}</b>${b.hauptlager?`<span class="kenn info">Hauptlager</span>`:""}
         <p class="klein">${esc(b.mitarbeiter)} · ${b.positionen.length} ${t("artikel")}</p>
         ${bk}</div>
       <div class="reihe">
@@ -1592,6 +1653,7 @@ function adminKarte(b) {
       </div>
     </div>
     ${adminAktion(b)}
+    ${fotoWand(b)}
     <details><summary>${b.positionen.length} ${t("artikel")}</summary>
       <table>${b.positionen.map(p=>`<tr><td class="code">${esc(p.code||"—")}</td><td>${esc(artAnzeige(p))}</td><td class="re">× ${p.menge}</td></tr>`).join("")}</table>
     </details></div>`;
@@ -1603,6 +1665,17 @@ function adminKarte(b) {
 function adminAktion(b) {
   const laedt = S.adminLaden === b.id;
   const knopf = (feld, text) => `<button class="btn voll" data-${feld}="${b.id}" ${laedt?"disabled":""}>${laedt?t("sendet"):text}</button>`;
+
+  // Bestellung aus dem Hauptlager: der Lagerist stellt zusammen und meldet
+  // der Unterhaltsreinigung, dass disponiert werden kann.
+  if (b.hauptlager) {
+    const fertig = b.status === "bereit" || b.status === "erledigt";
+    return `<div class="info"><span class="klein fett">Lieferung durch das Hauptlager</span>
+      <p class="klein">${fertig
+        ? "Vorbereitet · die Unterhaltsreinigung ist zum Disponieren informiert."
+        : "Diese Bestellung wird im Hauptlager zusammengestellt und geht nicht an Webstar."}</p>
+      ${fertig ? "" : knopf("vorbereitet", "Vorbereitet – Unterhaltsreinigung informieren")}</div>`;
+  }
 
   if (b.abteilung === "UH" && !b.fahrzeug && b.pruefung && b.pruefung.auffaellig
       && b.webstar_status !== "gesendet") {
@@ -1683,6 +1756,16 @@ function bindUhAdmin() {
   }
   document.querySelectorAll("[data-uhobj]").forEach(b =>
     b.onclick = () => { S.uhObjekt = b.dataset.uhobj; render(); });
+
+  if (el("hlSchalter")) el("hlSchalter").onchange = async (e) => {
+    const wert = e.target.checked;
+    try {
+      await DB.hauptlagerSetzen(S.adminCode, S.uhObjekt, wert);
+      const o = S.uhObjekte.find(x => x.objektnummer === S.uhObjekt);
+      if (o) o.hauptlager = wert;
+    } catch { S.fehler = t("adminFehler"); }
+    render();
+  };
 
   if (el("sbSpeichern")) el("sbSpeichern").onclick = async () => {
     const codes = [...document.querySelectorAll("[data-sb]")]
@@ -1805,6 +1888,29 @@ function bindFahrzeug() {
 
 const zielListe = (pref) => (pref === "p" ? S.positionen : S.aktKunde.positionen);
 
+// Das Foto wird auf dem Geraet auf 1000 Pixel verkleinert, damit es als
+// JPEG mit der Bestellung gespeichert werden kann.
+function bildVerkleinern(datei, max = 1000, guete = 0.72) {
+  return new Promise((fertig, fehler) => {
+    const leser = new FileReader();
+    leser.onerror = () => fehler(new Error("Datei nicht lesbar"));
+    leser.onload = () => {
+      const img = new Image();
+      img.onerror = () => fehler(new Error("Kein Bild"));
+      img.onload = () => {
+        const f = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * f);
+        c.height = Math.round(img.height * f);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        fertig(c.toDataURL("image/jpeg", guete));
+      };
+      img.src = leser.result;
+    };
+    leser.readAsDataURL(datei);
+  });
+}
+
 function bindMaterial() {
   // Artikel hinzufügen
   document.querySelectorAll("[data-add]").forEach(inp => {
@@ -1858,6 +1964,16 @@ function bindMaterial() {
       const p = gruppe[+inp.dataset.i];
       if (p) p.menge = Math.max(1, +inp.value || 1);
     };
+  });
+  document.querySelectorAll("[data-foto]").forEach(inp => inp.onchange = async () => {
+    const datei = inp.files && inp.files[0];
+    if (!datei) return;
+    const [pref, i] = inp.dataset.foto.split(":");
+    const pos = zielListe(pref).filter(p => p.freitext)[Number(i)];
+    if (!pos) return;
+    try { pos.bild = await bildVerkleinern(datei); }
+    catch (e) { console.warn("Foto nicht lesbar:", e); }
+    render();
   });
   document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
     const liste = zielListe(b.dataset.rm);
@@ -1946,6 +2062,14 @@ async function senden() {
     const res = Array.isArray(r) ? r[0] : r;
     S.gesendet = { nummer: res.nummer, id: res.bestellung_id, daten, kunden: S.kunden.slice(), positionen: alleP() };
 
+    // Fotos gehoeren zur Bestellung, nicht zur Position: sie werden gleich
+    // nach dem Anlegen nachgereicht und sind im Adminbereich zu sehen.
+    const fotos = alleP().filter(p => p.bild).map(p => ({ name: p.name, bild: p.bild }));
+    if (fotos.length) {
+      try { await DB.bilderSetzen(S.gesendet.id, S.user.personalnummer, fotos); }
+      catch (e) { console.warn("Fotos nicht gespeichert:", e); }
+    }
+
     // Reihenfolge bewusst so: Das PDF wird gebaut, dann geht die Mail ans Lager,
     // erst danach der Download. Der Mailversand darf nicht daran haengen, ob
     // das Herunterladen auf dem Handy klappt -- genau daran ist er bisher
@@ -1956,8 +2080,16 @@ async function senden() {
     try { doc = pdfBauen(S.gesendet); } catch (e) { console.warn("PDF nicht erzeugbar:", e); }
     // Die Unterhaltsreinigung geht zuerst zur Kontrolle in den Adminbereich;
     // die Mail an Webstar loest dort die Freigabe aus.
-    S.mailFehler = uhFreigabe() ? false : !(await mailVersand(S.gesendet, doc));
-    if (uhFreigabe()) {
+    // Laeuft das Objekt ueber das Hauptlager, geht die Bestellung wie eine
+    // Lagerbestellung an den Lagerist und nicht an Webstar.
+    const ausLager = uhFreigabe() && !!(S.kunden[0] || {}).hauptlager;
+    S.gesendet.hauptlager = ausLager;
+    S.mailFehler = (uhFreigabe() && !ausLager) ? false : !(await mailVersand(S.gesendet, doc));
+    if (ausLager) {
+      try { await DB.bestHauptlager(S.gesendet.id, S.user.personalnummer, true); }
+      catch (e) { console.warn(e); }
+      try { await mailVersand(S.gesendet, doc, "kanal"); } catch (e) { console.warn(e); }
+    } else if (uhFreigabe()) {
       // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal,
       // unabhaengig davon, ob sie automatisch rausgeht oder wartet.
       try { await mailVersand(S.gesendet, doc, "kanal"); } catch (e) { console.warn(e); }
@@ -2207,6 +2339,21 @@ function bindAdmin() {
     } catch (e) { S.fehler = e.message; }
     render();
   });
+  document.querySelectorAll("[data-vorbereitet]").forEach(b => b.onclick = async () => {
+    const id = +b.dataset.vorbereitet;
+    const best = S.adminDaten.find(x => x.id === id);
+    if (!best) return;
+    S.adminLaden = id; S.fehler = ""; render();
+    try {
+      const ok = await mailVersand(best, null, "disposition",
+        { mitarbeiter: best.mitarbeiter, personalnummer: best.personalnummer || "",
+          lieferadresse: best.lieferadresse || null });
+      if (!ok) throw new Error(t("mailFehler"));
+      await DB.statusSetzen(S.adminCode, id, "bereit");
+      S.adminDaten = await DB.adminListe(S.adminCode);
+    } catch (e) { S.fehler = e.message; }
+    S.adminLaden = null; render();
+  });
   document.querySelectorAll("[data-pdf]").forEach(b => b.onclick = () => {
     const best = S.adminDaten.find(x=>x.id === +b.dataset.pdf);
     adminPdf(best);
@@ -2329,6 +2476,16 @@ render();
 // --- Bild-Grossansicht -----------------------------------------------------
 // Delegierter Klick, damit die Funktion jedes Neuzeichnen ueberlebt.
 document.addEventListener("click", (e) => {
+  const foto = e.target.closest("img.fotozoom");
+  if (foto) {
+    const lupe = document.createElement("div");
+    lupe.className = "bildlupe";
+    lupe.innerHTML = `<button class="zu" aria-label="X">&times;</button>
+      <div><img src="${foto.src}" alt=""><p>${t("fotoTitel")}<br>${t("bildSchliessen")}</p></div>`;
+    lupe.addEventListener("click", () => lupe.remove());
+    document.body.appendChild(lupe);
+    return;
+  }
   const ausloeser = e.target.closest("[data-zoom]");
   if (ausloeser) {
     const code = ausloeser.dataset.zoom;

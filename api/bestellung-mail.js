@@ -76,6 +76,32 @@ function flach(kunden, positionen) {
 }
 
 // ---------------------------------------------------------------- Lagerkanal
+// Meldung an die Unterhaltsreinigung, sobald das Hauptlager eine Bestellung
+// zusammengestellt hat: ab hier disponiert das Buero die Lieferung zum Objekt.
+function dispoText(d) {
+  const k = (Array.isArray(d.kunden) && d.kunden[0]) || {};
+  const zeilen = [
+    "Guten Tag",
+    "",
+    `das Hauptlager hat die Materialbestellung ${d.nummer} zusammengestellt. `
+    + "Die Ware steht zur Lieferung an das Objekt bereit und kann disponiert werden.",
+    "",
+    `Objekt: ${k.name || d.lieferadresse || "–"}${k.objektnummer ? " · Objekt-Nr. " + k.objektnummer : ""}`,
+    `Bestellt durch: ${d.mitarbeiter || "–"}`,
+  ];
+  if (d.lieferadresse) zeilen.push(`Lieferadresse: ${d.lieferadresse}`);
+  zeilen.push("", "Positionen");
+  const liste = (k.positionen && k.positionen.length) ? k.positionen : (d.positionen || []);
+  if (liste.length) {
+    liste.forEach((p) => zeilen.push(
+      `  ${String(p.menge ?? "").padStart(4)} ×  ${p.code ? p.code + "  " : ""}${p.name || ""}`));
+  } else {
+    zeilen.push("  (keine Positionen übermittelt)");
+  }
+  zeilen.push("", "Freundliche Grüsse", "", FIRMA.name, "Hauptlager");
+  return zeilen.join("\n");
+}
+
 function lagerText(d) {
   const zeilen = [
     `Bestellnummer: ${d.nummer}`,
@@ -351,6 +377,8 @@ export default async function handler(req, res) {
     UH:  process.env.MAIL_KANAL_UH  || "73dafd23.clean-service.ch@emea.teams.ms",
     PFS: process.env.MAIL_KANAL_PFS || "4294af1a.clean-service.ch@emea.teams.ms",
   };
+  // Ist die Ware im Hauptlager bereit, meldet die App das dem Buero.
+  const DISPO = process.env.MAIL_DISPO || "unterhalt@clean-service.ch";
   // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
   const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
   const KUNDE_ANTWORT_AKTIV = true;
@@ -368,6 +396,7 @@ export default async function handler(req, res) {
     const anWebstar = d.ziel === "webstar";
     const anKunde   = d.ziel === "kunde";
     const anKanal   = d.ziel === "kanal";
+    const anDispo   = d.ziel === "disposition";
     const kanal     = KANAL[String(d.abt || "").toUpperCase()] || null;
 
     let TO;
@@ -379,6 +408,8 @@ export default async function handler(req, res) {
     } else if (anKanal) {
       if (!kanal) return res.status(400).json({ fehler: "Kein Kanal für diese Abteilung" });
       TO = kanal;
+    } else if (anDispo) {
+      TO = DISPO;
     } else {
       TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
     }
@@ -386,7 +417,7 @@ export default async function handler(req, res) {
     const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
     // Die Mail ans Lager geht zusaetzlich in den Kanal der Abteilung.
-    if (!anWebstar && !anKunde && !anKanal && kanal && kanal !== TO) nachricht.cc = [kanal];
+    if (!anWebstar && !anKunde && !anKanal && !anDispo && kanal && kanal !== TO) nachricht.cc = [kanal];
 
     if (anKanal) {
       const teile = ["Materialbestellung", d.abteilung || "", d.mitarbeiter || "", d.personalnummer || ""];
@@ -397,6 +428,12 @@ export default async function handler(req, res) {
       nachricht.subject = kundeBetreff(d);
       nachricht.text = kundeText(d);
       nachricht.html = kundeHtml(d);
+    } else if (anDispo) {
+      const k = (Array.isArray(d.kunden) && d.kunden[0]) || {};
+      nachricht.subject = ["Material vorbereitet", d.nummer,
+        k.name || d.lieferadresse || "", k.objektnummer ? "Objekt-Nr. " + k.objektnummer : ""]
+        .filter(Boolean).join(" · ");
+      nachricht.text = dispoText(d);
     } else if (anWebstar) {
       nachricht.subject = `Materialbestellung ${d.nummer} · ${FIRMA.name}`;
       nachricht.text = webstarText(d);
@@ -465,7 +502,8 @@ export default async function handler(req, res) {
 
     const daten = await antwort.json();
     console.log("Bestellmail versendet", d.nummer, daten.id,
-                anKanal ? "in den Kanal " + TO
+                anDispo ? "zur Disposition an " + TO
+                : anKanal ? "in den Kanal " + TO
                         : anKunde ? "an den Kunden (" + (d.art || "lieferung") + ")"
                         : anWebstar ? "an Webstar" : "ans Lager",
                 nachricht.attachments ? "mit PDF" : "ohne PDF");
