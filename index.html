@@ -351,8 +351,6 @@ const DB = {
   adminZugang: (code) => rpc("admin_zugang_v5", { code }),
   hauptlagerSetzen: (code, nr, wert) =>
     rpc("objekt_hauptlager_setzen", { code, p_objektnummer: nr, p_wert: wert }),
-  kundeBestelltSetzen: (code, nr, wert) =>
-    rpc("objekt_kundebestellt_setzen", { code, p_objektnummer: nr, p_wert: wert }),
   bestHauptlager: (id, pnr, wert) =>
     rpc("bestellung_hauptlager_setzen", { best_id: id, personalnummer: pnr, wert }),
   bilderSetzen: (id, pnr, bilder) =>
@@ -1641,7 +1639,6 @@ function uhObjekteView() {
     ${tr.length ? `<div class="treffer kundenliste">${tr.map(x=>`<button class="eintrag" data-uhobj="${esc(x.objektnummer)}">
         <span class="flex1"><b>${esc(x.kundenname)}</b><span class="klein"> Objekt-Nr. ${esc(x.objektnummer)}</span></span>
         ${x.hauptlager?`<span class="kenn info">Hauptlager</span>`:""}
-        ${x.kunde_bestellt?`<span class="kenn gruen">Kunde bestellt</span>`:""}
         ${x.selbstbesorgung.length?`<span class="kenn warn">${x.selbstbesorgung.length} selbst</span>`:""}</button>`).join("")}</div>` : ""}
   </div>
   ${o ? `<div class="karte">
@@ -1657,19 +1654,9 @@ function uhObjekteView() {
           zum Disponieren.</span></span>
     </label>
 
-    <label class="hlbox">
-      <input type="checkbox" id="kbSchalter"${o.kunde_bestellt?" checked":""}>
-      <span><b>Kunde bestellt das Verbrauchsmaterial selbst</b>
-        <span class="klein">Wird vorerst nur festgehalten; was daraus folgt,
-          legen wir später fest.</span></span>
-    </label>
-
     <div class="zeile" style="margin-top:14px">
       <p class="klein fett">Der Kunde besorgt selbst</p>
-      <div class="reihe">
-        <button class="btn sek klein" id="sbAlle">Alles der Kunde</button>
-        <button class="btn ghost klein" id="sbKeine">Leeren</button>
-      </div>
+      <button class="btn klein" id="sbAlle">Alles der Kunde</button>
     </div>
     <p class="klein">«Alles der Kunde» kreuzt das ganze Verbrauchsmaterial an und
       speichert sofort. Einzelne Haken werden mit «Speichern» übernommen.</p>
@@ -2059,17 +2046,7 @@ function bindUhAdmin() {
     render();
   };
 
-  if (el("kbSchalter")) el("kbSchalter").onchange = async (e) => {
-    const wert = e.target.checked;
-    try {
-      await DB.kundeBestelltSetzen(S.adminCode, S.uhObjekt, wert);
-      const o = S.uhObjekte.find(x => x.objektnummer === S.uhObjekt);
-      if (o) o.kunde_bestellt = wert;
-    } catch { S.fehler = t("adminFehler"); }
-    render();
-  };
-
-  // Ganzes Verbrauchsmaterial auf einmal setzen oder leeren.
+  // Ganzes Verbrauchsmaterial auf einmal dem Kunden zuweisen.
   const sbSetzen = async (codes) => {
     try {
       await DB.selbstbesorgungSetzen(S.adminCode, S.uhObjekt, codes);
@@ -2080,7 +2057,6 @@ function bindUhAdmin() {
   };
   if (el("sbAlle")) el("sbAlle").onclick = () =>
     sbSetzen(S.artikel.filter(a => a.kategorie === "500").map(a => a.code));
-  if (el("sbKeine")) el("sbKeine").onclick = () => sbSetzen([]);
 
   if (el("sbSpeichern")) el("sbSpeichern").onclick = async () => {
     const codes = [...document.querySelectorAll("[data-sb]")]
