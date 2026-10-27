@@ -103,6 +103,10 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .aussumme span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--grau)}
 .aussumme b{font-size:18px;color:var(--ink);margin-right:4px}
 .ausleer{margin:10px 0 0}
+.invzelle{display:inline-flex;align-items:center;gap:6px}
+.invzelle input{width:68px;text-align:right}
+.invzelle .link{font-size:17px;line-height:1;padding:2px 6px}
+.uhtab input[type=number]{width:68px;text-align:right}
 .kenn.rot{background:#F8DFDF;color:#8E2B2B}
 .kenn.grau{background:#ECF0F1;color:#5B6B70}
 .dropzone{display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -356,6 +360,10 @@ const DB = {
   bilderSetzen: (id, pnr, bilder) =>
     rpc("bestellung_bilder_setzen", { best_id: id, personalnummer: pnr, bilder }),
   buchZugang: (code) => rpc("buchhaltung_zugang", { code }),
+  lagerZugang: (code) => rpc("lager_zugang", { code }),
+  inventarSetzen: (code, art, abt, bestand, minimum) =>
+    rpc("inventar_setzen", { code, p_code: art, p_abteilung: abt,
+                             p_bestand: bestand, p_minimum: minimum }),
   rechnungAblegen: (code, rechnung, eintraege) =>
     rpc("rechnung_ablegen", { code, p_rechnung: rechnung, p_eintraege: eintraege }),
   selbstbesorgungSetzen: (code, nr, codes) =>
@@ -656,6 +664,7 @@ const S = {
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
+  inventarForm: false, inventar: [], invTab: "inventar", invAbt: "", invSuche: "", invNurWenig: false,
   uhTab: "bestellungen", uhOffen: null, uhObjekt: null, uhSuche: "",
   uhObjekte: [], uhVerrechnung: [], uhVerrErledigt: false,
   aktKunde: null,      // laufender Block (PFS)
@@ -811,7 +820,9 @@ function render() {
 
 function kopf() {
   const rechts = S.admin
-    ? `<div class="ident"><b>${t("adminTitelDash")}</b><span>${t("adminHinweis")}</span></div>`
+    ? (S.adminRolle === "inventar"
+      ? `<div class="ident"><b>Hauptlager</b><span>Inventar</span></div>`
+      : `<div class="ident"><b>${t("adminTitelDash")}</b><span>${t("adminHinweis")}</span></div>`)
     : `<div class="ident"><b>${esc(S.user.vorname || "")} ${esc(S.user.nachname)}</b><span>${t("pnr")} ${esc(S.user.personalnummer)}</span></div>`;
   return `<header><div class="wrap kopf">
     <div class="marke"><img class="logobild" src="${LOGO_KOPF}" alt="${t("firma")}"><span class="klein">${t("app")}</span></div>
@@ -837,6 +848,16 @@ function loginView() {
            : `<p class="fehler">${t("keineAbteilung")}</p>`}
          <button class="btn ghost voll" id="abbrechen">${t("abbrechen")}</button>
        </div>`
+    : S.inventarForm
+    ? `<div class="karte">
+         <h1>Hauptlager</h1>
+         <p class="klein">Inventar · Zugang mit dem Lagercode</p>
+         <label>${t("adminCode")}</label>
+         <input type="password" id="invCode" placeholder="${t("adminCodePh")}" autocomplete="off">
+         ${S.fehler ? `<p class="fehler">${esc(S.fehler)}</p>` : ""}
+         <button class="btn voll" id="invGo">${t("zugreifen")}</button>
+       </div>
+       <p class="mitte"><a href="#" id="zurLogin2">${t("zurueckLogin")}</a></p>`
     : S.adminForm
     ? `<div class="karte">
          <h1>${t("adminTitel")}</h1>
@@ -868,6 +889,8 @@ function bindLogin() {
   const go = async () => {
     const pnr = el("pnr").value.trim();
     if (!pnr) return;
+    // Die 1 ist keine Person, sondern das Hauptlager; dort folgt ein Code.
+    if (pnr === "1") { S.inventarForm = true; S.fehler = ""; render(); return; }
     S.fehler = ""; 
     try {
       const r = await DB.mitarbeiter(pnr);
@@ -878,6 +901,24 @@ function bindLogin() {
   if (el("loginGo")) {
     el("loginGo").onclick = go;
     el("pnr").onkeydown = (e) => { if (e.key === "Enter") go(); };
+  }
+  if (el("zurLogin2")) el("zurLogin2").onclick = (e) => {
+    e.preventDefault(); S.inventarForm = false; S.fehler = ""; render(); };
+  if (el("invGo")) {
+    const igo = async () => {
+      const code = el("invCode").value.trim();
+      S.laden = true;
+      try {
+        const z = await DB.lagerZugang(code);
+        const zz = Array.isArray(z) ? z[0] : z;
+        S.inventar = (zz && zz.artikel) || [];
+        S.admin = true; S.adminRolle = "inventar"; S.adminCode = code;
+        S.inventarForm = false; S.fehler = "";
+      } catch { S.fehler = t("adminFehler"); }
+      S.laden = false; render();
+    };
+    el("invGo").onclick = igo;
+    el("invCode").onkeydown = (e) => { if (e.key === "Enter") igo(); };
   }
   if (el("zurAdmin")) el("zurAdmin").onclick = (e) => { e.preventDefault(); S.adminForm = true; S.fehler=""; render(); };
   if (el("zurLogin")) el("zurLogin").onclick = (e) => { e.preventDefault(); S.adminForm = false; S.fehler=""; render(); };
@@ -1429,7 +1470,148 @@ function buchListeView() {
 }
 
 // --- Admin -----------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Hauptlager: Inventar (erster Entwurf)
+// ---------------------------------------------------------------------------
+const INV_ABT = [["", "Alle"], ["UH", "Unterhalt"], ["PFS", "Putzfrauenservice"], ["SPEZ", "Spezial"]];
+
+const invStatus = (a) => {
+  if (a.minimum <= 0) return ["grau", "kein Minimum"];
+  if (a.bestand <= 0) return ["rot", "leer"];
+  if (a.bestand <= a.minimum) return ["warn", "unter Minimum"];
+  if (a.bestand <= a.minimum * 1.25) return ["warn", "knapp"];
+  return ["gruen", "genug"];
+};
+
+const invWenig = (a) => a.minimum > 0 && a.bestand <= a.minimum;
+
+function invGefiltert() {
+  const q = (S.invSuche || "").trim().toLowerCase();
+  return (S.inventar || []).filter(a =>
+    (!S.invAbt || a.abteilung === S.invAbt) &&
+    (!S.invNurWenig || invWenig(a)) &&
+    (!q || artName(a).toLowerCase().includes(q) || String(a.code).toLowerCase().includes(q)));
+}
+
+function invAdminView() {
+  const liste = invGefiltert();
+  const wenig = (S.inventar || []).filter(invWenig).length;
+  const stueck = (S.inventar || []).reduce((n, a) => n + a.bestand, 0);
+  return `<div class="kopfzeile"><div><h1>Hauptlager</h1>
+      <p class="klein">Inventar über alle Abteilungen</p></div>
+      <button class="btn sek" id="refresh">Aktualisieren</button></div>
+    <div class="kacheln">
+      <div class="kachel"><b>${(S.inventar || []).length}</b><span>Artikel</span></div>
+      <div class="kachel"><b>${stueck}</b><span>Stück am Lager</span></div>
+      <div class="kachel"><b>${wenig}</b><span>nachbestellen</span></div>
+    </div>
+    <div class="tabs">
+      <button class="${S.invTab !== "nach" ? "an" : ""}" data-invtab="inventar">Inventar</button>
+      <button class="${S.invTab === "nach" ? "an" : ""}" data-invtab="nach">Nachbestellen</button>
+    </div>
+    ${S.invTab === "nach" ? invNachView() : invListeView(liste)}`;
+}
+
+function invListeView(liste) {
+  return `<div class="karte">
+    <div class="reihe">${INV_ABT.map(([k, n]) =>
+      `<button class="wahl ${(S.invAbt || "") === k ? "an" : ""}" data-invabt="${k}">${n}</button>`).join("")}</div>
+    <div class="suchfeld" style="margin-top:8px">
+      <input id="invSuche" value="${esc(S.invSuche || "")}"
+             placeholder="Artikel oder Nummer suchen" autocomplete="off"></div>
+    <label class="klein" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px">
+      <input type="checkbox" id="invWenig"${S.invNurWenig ? " checked" : ""}>
+      nur was nachbestellt werden muss</label>
+    <p class="klein">${liste.length} von ${(S.inventar || []).length} Artikeln</p>
+
+    <table class="uhtab">
+      <thead><tr><th>Artikel</th><th class="re">Bestand</th><th class="re">Minimum</th><th>Status</th></tr></thead>
+      <tbody>${liste.map(a => {
+        const [farbe, text] = invStatus(a);
+        const schl = `${a.abteilung}:${a.code}`;
+        return `<tr>
+          <td><span class="code">${esc(nrZeig(a.code))}</span> ${esc(artName(a))}
+            <span class="klein hinw">${esc(abtName(a.abteilung))} · ${esc(katName(a.kategorie))}</span></td>
+          <td class="re"><span class="invzelle">
+            <button class="link" data-invminus="${schl}">−</button>
+            <input type="number" min="0" value="${a.bestand}" data-invbestand="${schl}">
+            <button class="link" data-invplus="${schl}">+</button></span></td>
+          <td class="re"><input type="number" min="0" value="${a.minimum}" data-invmin="${schl}"></td>
+          <td><span class="kenn ${farbe}">${text}</span></td></tr>`;
+      }).join("")}</tbody></table>
+  </div>`;
+}
+
+function invNachView() {
+  const liste = (S.inventar || []).filter(invWenig)
+    .sort((a, b) => (a.bestand - a.minimum) - (b.bestand - b.minimum));
+  if (!liste.length) return `<div class="karte mitte">
+    <p class="klein">Nichts unter dem Mindestbestand.</p></div>`;
+  return `<div class="karte">
+    <b>Diese Artikel sind unter dem Mindestbestand</b>
+    <p class="klein">Vorgeschlagen wird die Menge, die den doppelten Mindestbestand erreicht.
+      Das Auslösen der Bestellung bei Webstar bauen wir im nächsten Schritt dazu.</p>
+    <table class="uhtab">
+      <thead><tr><th>Artikel</th><th class="re">Bestand</th><th class="re">Minimum</th>
+        <th class="re">Vorschlag</th></tr></thead>
+      <tbody>${liste.map(a => `<tr>
+        <td><span class="code">${esc(nrZeig(a.code))}</span> ${esc(artName(a))}
+          <span class="klein hinw">${esc(abtName(a.abteilung))}</span></td>
+        <td class="re">${a.bestand}</td><td class="re">${a.minimum}</td>
+        <td class="re"><b>${Math.max(1, a.minimum * 2 - a.bestand)}</b></td></tr>`).join("")}</tbody></table>
+  </div>`;
+}
+
+function bindInventar() {
+  if (el("refresh")) el("refresh").onclick = async () => {
+    try {
+      const z = await DB.lagerZugang(S.adminCode);
+      const zz = Array.isArray(z) ? z[0] : z;
+      S.inventar = (zz && zz.artikel) || S.inventar;
+    } catch { S.fehler = t("adminFehler"); }
+    render();
+  };
+  document.querySelectorAll("[data-invtab]").forEach(b =>
+    b.onclick = () => { S.invTab = b.dataset.invtab; render(); });
+  document.querySelectorAll("[data-invabt]").forEach(b =>
+    b.onclick = () => { S.invAbt = b.dataset.invabt; render(); });
+  if (el("invWenig")) el("invWenig").onchange = (e) => { S.invNurWenig = e.target.checked; render(); };
+  const s = el("invSuche");
+  if (s) s.oninput = () => {
+    S.invSuche = s.value; const p = s.selectionStart; render();
+    const n = el("invSuche"); if (n) { n.focus(); n.setSelectionRange(p, p); }
+  };
+
+  const finde = (schl) => {
+    const [abt, code] = String(schl).split(":");
+    return (S.inventar || []).find(a => a.abteilung === abt && a.code === code);
+  };
+  const speichern = async (a) => {
+    try { await DB.inventarSetzen(S.adminCode, a.code, a.abteilung, a.bestand, a.minimum); }
+    catch { S.fehler = t("adminFehler"); }
+    render();
+  };
+  document.querySelectorAll("[data-invbestand]").forEach(inp => inp.onchange = () => {
+    const a = finde(inp.dataset.invbestand); if (!a) return;
+    a.bestand = Math.max(0, parseInt(inp.value, 10) || 0); speichern(a);
+  });
+  document.querySelectorAll("[data-invmin]").forEach(inp => inp.onchange = () => {
+    const a = finde(inp.dataset.invmin); if (!a) return;
+    a.minimum = Math.max(0, parseInt(inp.value, 10) || 0); speichern(a);
+  });
+  document.querySelectorAll("[data-invplus]").forEach(b => b.onclick = () => {
+    const a = finde(b.dataset.invplus); if (!a) return;
+    a.bestand += 1; speichern(a);
+  });
+  document.querySelectorAll("[data-invminus]").forEach(b => b.onclick = () => {
+    const a = finde(b.dataset.invminus); if (!a) return;
+    a.bestand = Math.max(0, a.bestand - 1); speichern(a);
+  });
+}
+
 function adminView() {
+  if (S.adminRolle === "inventar") return invAdminView();
   if (S.adminRolle === "buchhaltung") return buchAdminView();
   if (S.adminRolle === "uh") return uhAdminView();
   const d = S.adminDaten;
@@ -2664,10 +2846,12 @@ function bindBuch() {
 // --- Admin -----------------------------------------------------------------
 function bindAdmin() {
   bindGemeinsam();
+  if (S.adminRolle === "inventar") return bindInventar();
   el("refresh").onclick = async () => {
     try { S.adminDaten = await DB.adminListe(S.adminCode); } catch { S.fehler = t("ladefehler"); }
     render();
   };
+  if (S.adminRolle === "inventar") return bindInventar();
   if (S.adminRolle === "buchhaltung") return bindBuch();
   if (S.adminRolle === "uh") return bindUhAdmin();
   document.querySelectorAll("[data-amenge]").forEach(inp => {
