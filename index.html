@@ -744,6 +744,9 @@ function uhPruefung(objektnummer, positionen) {
 // Anzeige einer Position: immer in der aktuell gewaehlten Sprache, damit ein
 // Sprachwechsel auch bereits erfasste Positionen umstellt. Gespeichert bleibt
 // die deutsche Bezeichnung.
+// Platzhalter wie 500-GS35 werden nirgends als Artikelnummer gezeigt.
+const nrZeig = (code) => /^\d{3}-[\d.]+$/.test(String(code || "")) ? String(code) : "";
+
 const artAnzeige = (p) => {
   const a = (S.artikel || []).find(x => x.code === p.code);
   return a ? artName(a) : (p.anzeige || p.name);
@@ -1078,7 +1081,7 @@ function materialView(ziel, block) {
       const img = bild(p.code, false);
       h += `<div class="pos">
         <div class="pos-info">${img?`<img src="${img}" alt="" class="zoombar" data-zoom="${esc(p.code)}" title="${t("bildVergroessern")}">`:""}
-          <div><span class="code">${esc(p.code||"")}</span><b>${esc(artAnzeige(p))}</b>${img?`<button class="link lupe" data-zoom="${esc(p.code)}">${t("bildVergroessern")}</button>`:""}</div></div>
+          <div><span class="code">${esc(nrZeig(p.code))}</span><b>${esc(artAnzeige(p))}</b>${img?`<button class="link lupe" data-zoom="${esc(p.code)}">${t("bildVergroessern")}</button>`:""}</div></div>
         <input type="number" min="1" value="${p.menge}" data-menge="${pref}" data-kat="${kat}" data-i="${i}">
         <button class="link rot" data-rm="${pref}" data-kat="${kat}" data-i="${i}">✕</button></div>`;
     });
@@ -1551,7 +1554,7 @@ function uhKarte(b) {
       const sb = selbstbesorgt(k.objektnummer).includes(p.code);
       const verr = (p.code||"").startsWith("500");
       return `<tr${sb?' class="sb"':""}>
-        <td class="code">${esc(p.code||"—")}</td>
+        <td class="code">${esc(nrZeig(p.code) || "—")}</td>
         <td>${esc(p.name)}
           ${sb?`<span class="kenn warn">Kunde besorgt selbst</span>`:""}
           ${verr&&!sb?`<span class="kenn info">wird verrechnet</span>`:""}</td>
@@ -1612,7 +1615,7 @@ function uhVerrechnungView() {
         <td>${esc(v.datum)}${v.rechnung_nr
           ? `<span class="kenn rot">Rechnung ${esc(v.rechnung_nr)}</span>` : ""}</td>
         <td><b>${esc(v.kundenname)}</b><span class="klein"> ${esc(v.objektnummer)}</span></td>
-        <td><span class="code">${esc(v.code)}</span> ${esc(v.name)}
+        <td><span class="code">${esc(nrZeig(v.code))}</span> ${esc(v.name)}
           ${v.hinweis ? `<span class="klein hinw">${esc(v.hinweis)}</span>` : ""}</td>
         <td class="re">${v.menge}</td>
         <td class="re">${v.erledigt
@@ -1662,7 +1665,7 @@ function uhObjekteView() {
       speichert sofort. Einzelne Haken werden mit «Speichern» übernommen.</p>
     <table class="uhtab"><tbody>${S.artikel.filter(a=>a.kategorie==="500").map(a=>`<tr>
       <td style="width:34px"><input type="checkbox" data-sb="${esc(a.code)}"${o.selbstbesorgung.includes(a.code)?" checked":""}></td>
-      <td class="code">${esc(a.code)}</td><td>${esc(artName(a))}</td>
+      <td class="code">${esc(nrZeig(a.code))}</td><td>${esc(artName(a))}</td>
       <td class="re klein">${esc(katName(a.kategorie))}</td></tr>`).join("")}</tbody></table>
     <button class="btn voll" id="sbSpeichern">Speichern</button>
   </div>` : ""}`;
@@ -1699,7 +1702,7 @@ function auswertungTabelle(titel, daten, spalte) {
   const max = Math.max(1, ...daten.map(x => x[1].menge));
   const detail = (e) => `<table class="uhtab detail"><tbody>${
     [...e.art.entries()].sort((a, b) => b[1].menge - a[1].menge)
-      .map(([code, a]) => `<tr><td class="code">${esc(code)}</td><td>${esc(a.name)}</td>
+      .map(([code, a]) => `<tr><td class="code">${esc(nrZeig(code))}</td><td>${esc(a.name)}</td>
         <td class="re"><b>${a.menge}</b></td></tr>`).join("")}</tbody></table>`;
   return `<div class="karte"><b>${titel}</b>
     <div class="sumkopf"><span class="sumzeile">
@@ -1830,7 +1833,7 @@ function ausCsv(liste, abt) {
         .filter(p => p.block_id == null || p.block_id === k.block_id)) {
         zeilen.push([String(b.erstellt_am || "").slice(0, 10), b.nummer,
           t(STATUS_LABEL[b.status]) || b.status, abtName(b.abteilung), b.mitarbeiter,
-          k.kundenname, k.objektnummer, p.code || "", artAnzeige(p), p.menge]);
+          k.kundenname, k.objektnummer, nrZeig(p.code), artAnzeige(p), p.menge]);
       }
     }
   }
@@ -1934,7 +1937,7 @@ function adminKarte(b) {
     ${adminAktion(b)}
     ${fotoWand(b)}
     <details><summary>${b.positionen.length} ${t("artikel")}</summary>
-      <table>${b.positionen.map(p=>`<tr><td class="code">${esc(p.code||"—")}</td><td>${esc(artAnzeige(p))}</td><td class="re">× ${p.menge}</td></tr>`).join("")}</table>
+      <table>${b.positionen.map(p=>`<tr><td class="code">${esc(nrZeig(p.code) || "—")}</td><td>${esc(artAnzeige(p))}</td><td class="re">× ${p.menge}</td></tr>`).join("")}</table>
     </details></div>`;
 }
 
@@ -1967,7 +1970,7 @@ function adminAktion(b) {
       <ul class="gruende">${(pr.auffaellig ? pr.gruende : [{text:"Mengen angepasst, jetzt im Rahmen."}])
         .map(g=>`<li>${esc(g.name ? g.name + ": " + g.text : g.text)}</li>`).join("")}</ul>
       <table class="uhpos">${b.positionen.map((p,i)=>`<tr>
-        <td class="code">${esc(p.code||"—")}</td>
+        <td class="code">${esc(nrZeig(p.code) || "—")}</td>
         <td>${esc(p.anzeige || p.name)}</td>
         <td class="re" style="width:92px">
           <input type="number" min="0" value="${p.menge}" data-amenge="${b.id}:${i}"></td></tr>`).join("")}</table>
@@ -2215,7 +2218,7 @@ function bindMaterial() {
         const img = bild(a.code, false);
         return `<button class="vorschlag" data-code="${esc(a.code)}">
           ${img?`<img src="${img}" alt="">`:`<span class="platzhalter"></span>`}
-          <span class="code">${esc(a.code)}</span><span>${esc(artName(a))}</span></button>`;
+          <span class="code">${esc(nrZeig(a.code))}</span><span>${esc(artName(a))}</span></button>`;
       }).join("") : `<p class="hinweis klein">${t(freitextErlaubt() ? "artikelKeine" : "artikelKeineKurz")}</p>`;
       box.querySelectorAll("[data-code]").forEach(b => b.onclick = () => {
         const a = S.artikel.find(x=>x.code===b.dataset.code);
@@ -2463,10 +2466,10 @@ function pdfBauen(best) {
   if (best.kunden.length > 1) {
     best.kunden.forEach(k => {
       zeilen.push([{content:`${k.kundenname} · ${k.objektnummer}`, colSpan:4, styles:{fontStyle:"bold", textColor:B}}]);
-      k.positionen.forEach(p => zeilen.push(["", p.code||"—", p.name, String(p.menge)]));
+      k.positionen.forEach(p => zeilen.push(["", nrZeig(p.code) || "—", p.name, String(p.menge)]));
     });
   } else {
-    best.positionen.forEach(p => zeilen.push(["", p.code||"—", p.name, String(p.menge)]));
+    best.positionen.forEach(p => zeilen.push(["", nrZeig(p.code) || "—", p.name, String(p.menge)]));
   }
 
   doc.autoTable({
@@ -2553,7 +2556,7 @@ async function mailVersand(best, doc, ziel, extra) {
 
   const kunden = (best.kunden || []).map(k => ({
     name: k.kundenname, objektnummer: k.objektnummer,
-    positionen: (k.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
+    positionen: (k.positionen || []).map(p => ({ code: nrZeig(p.code), name: p.name, menge: p.menge })),
   }));
   const nutzlast = {
     nummer:         best.nummer,
@@ -2568,7 +2571,7 @@ async function mailVersand(best, doc, ziel, extra) {
     ziel:           ziel || "lager",
     lieferadresse:  best.daten?.lieferadresse || null,
     kunden:         kunden.length ? kunden : null,
-    positionen:     kunden.length ? null : (best.positionen || []).map(p => ({ code: p.code, name: p.name, menge: p.menge })),
+    positionen:     kunden.length ? null : (best.positionen || []).map(p => ({ code: nrZeig(p.code), name: p.name, menge: p.menge })),
     pdf,
     ...(extra || {}),
   };
