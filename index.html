@@ -1520,9 +1520,9 @@ function invListeView(liste) {
     <div class="suchfeld" style="margin-top:8px">
       <input id="invSuche" value="${esc(S.invSuche || "")}"
              placeholder="Artikel oder Nummer suchen" autocomplete="off"></div>
-    <label class="klein" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px">
+    <label class="klein" style="display:flex;align-items:center;gap:8px;margin:10px 0 2px">
       <input type="checkbox" id="invWenig"${S.invNurWenig ? " checked" : ""}>
-      nur was nachbestellt werden muss</label>
+      <span>nur was nachbestellt werden muss</span></label>
     <p class="klein">${liste.length} von ${(S.inventar || []).length} Artikeln</p>
 
     <table class="uhtab">
