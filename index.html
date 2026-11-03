@@ -290,6 +290,17 @@ details summary{cursor:pointer;font-size:12px;color:var(--tuerkis-d);font-weight
 
 .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .loginbox{width:100%;max-width:380px}
+.anlknopf{margin-top:10px}
+.anltabs{margin-bottom:14px}
+.anltabs button{font-size:13px;padding:7px 4px}
+.anlh1{margin:0;font-size:20px}
+.anlliste{margin:14px 0 2px;padding-left:0;list-style:none;counter-reset:anl;
+  display:flex;flex-direction:column;gap:11px}
+.anlliste li{counter-increment:anl;display:grid;grid-template-columns:26px 1fr;gap:11px;
+  align-items:start;font-size:14.5px;line-height:1.45}
+.anlliste li::before{content:counter(anl);width:26px;height:26px;border-radius:50%;
+  background:var(--tuerkis-l);color:var(--tuerkis-d);font-weight:700;font-size:13px;
+  display:flex;align-items:center;justify-content:center}
 .loginbox .marke{justify-content:center;margin:16px 0}
 .avatar{width:52px;height:52px;border-radius:50%;background:var(--tuerkis-l);color:var(--tuerkis-d);
   font-size:19px;font-weight:bold;display:flex;align-items:center;justify-content:center;margin:0 auto 12px}
@@ -661,6 +672,7 @@ const S = {
   // Formular
   fahrzeug: "",
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
+  anleitung: false, anlAbt: "UH",
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
@@ -836,8 +848,125 @@ function kopf() {
 const fuss = () => `<footer class="wrap">${t("firma")} · ${t("app")}</footer>`;
 
 // --- Login -----------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Anleitung vor dem Anmelden: je Abteilung die Schritte, in allen vier Sprachen
+// ---------------------------------------------------------------------------
+const ANL_WORTE = {
+  de: { knopf:"Anleitung – wie bestelle ich?", titel:"So bestellst du Material",
+        zurueck:"Zurück zur Anmeldung",
+        kurz:{ UH:"Unterhalt", PFS:"Putzfrauen", SPEZ:"Spezial" } },
+  es: { knopf:"Instrucciones – ¿cómo pido?", titel:"Así pides material",
+        zurueck:"Volver al inicio de sesión",
+        kurz:{ UH:"Unterhalt", PFS:"Putzfrauen", SPEZ:"Spezial" } },
+  pt: { knopf:"Instruções – como encomendo?", titel:"Como encomendas material",
+        zurueck:"Voltar ao início de sessão",
+        kurz:{ UH:"Unterhalt", PFS:"Putzfrauen", SPEZ:"Spezial" } },
+  it: { knopf:"Istruzioni – come ordino?", titel:"Come ordinare il materiale",
+        zurueck:"Torna all'accesso",
+        kurz:{ UH:"Unterhalt", PFS:"Putzfrauen", SPEZ:"Spezial" } },
+};
+
+const ANL_SCHRITTE = {
+  de: {
+    UH: ["Mit deiner Personalnummer anmelden.",
+         "Das Objekt suchen und auswählen.",
+         "Material antippen und die Menge einstellen. Zu jedem Artikel gibt es ein Bild.",
+         "Fehlt etwas? Unter «Anderes benötigtes Material» eintippen – ein Foto kannst du mitschicken.",
+         "Unterschreiben und absenden.",
+         "Das Material wird innert 48 Stunden direkt zum Objekt geliefert."],
+    PFS:["Mit deiner Personalnummer anmelden.",
+         "Putzfrauenservice als Abteilung wählen.",
+         "Kunden auswählen – du kannst mehrere in einer Bestellung erfassen.",
+         "Je Kunde das Material antippen und die Menge einstellen.",
+         "Wählen, ob du im Magazin abholst oder nach Hause geliefert bekommst.",
+         "Unterschreiben und absenden.",
+         "Sobald das Material bereit ist, erhältst du eine Beekeeper-Nachricht."],
+    SPEZ:["Mit deiner Personalnummer anmelden.",
+         "Das Fahrzeug auswählen.",
+         "Material antippen und die Menge einstellen.",
+         "Unterschreiben und absenden.",
+         "Sobald das Material bereit ist, erhältst du eine Beekeeper-Nachricht."] },
+  es: {
+    UH: ["Inicia sesión con tu número de personal.",
+         "Busca y selecciona el objeto.",
+         "Toca el material y ajusta la cantidad. Cada artículo tiene una foto.",
+         "¿Falta algo? Escríbelo en «Otro material necesario» – puedes añadir una foto.",
+         "Firma y envía.",
+         "El material se entrega en el objeto en un plazo de 48 horas."],
+    PFS:["Inicia sesión con tu número de personal.",
+         "Elige el departamento Putzfrauenservice.",
+         "Selecciona los clientes – puedes incluir varios en un pedido.",
+         "Para cada cliente, toca el material y ajusta la cantidad.",
+         "Elige si lo recoges en el almacén o si se entrega en tu domicilio.",
+         "Firma y envía.",
+         "Cuando el material esté listo, recibirás un mensaje por Beekeeper."],
+    SPEZ:["Inicia sesión con tu número de personal.",
+         "Selecciona el vehículo.",
+         "Toca el material y ajusta la cantidad.",
+         "Firma y envía.",
+         "Cuando el material esté listo, recibirás un mensaje por Beekeeper."] },
+  pt: {
+    UH: ["Inicia sessão com o teu número de pessoal.",
+         "Procura e seleciona o objeto.",
+         "Toca no material e ajusta a quantidade. Cada artigo tem uma foto.",
+         "Falta alguma coisa? Escreve em «Outro material necessário» – podes juntar uma foto.",
+         "Assina e envia.",
+         "O material é entregue no objeto dentro de 48 horas."],
+    PFS:["Inicia sessão com o teu número de pessoal.",
+         "Escolhe o departamento Putzfrauenservice.",
+         "Seleciona os clientes – podes incluir vários no mesmo pedido.",
+         "Para cada cliente, toca no material e ajusta a quantidade.",
+         "Escolhe se levantas no armazém ou se é entregue em tua casa.",
+         "Assina e envia.",
+         "Quando o material estiver pronto, recebes uma mensagem no Beekeeper."],
+    SPEZ:["Inicia sessão com o teu número de pessoal.",
+         "Seleciona o veículo.",
+         "Toca no material e ajusta a quantidade.",
+         "Assina e envia.",
+         "Quando o material estiver pronto, recebes uma mensagem no Beekeeper."] },
+  it: {
+    UH: ["Accedi con il tuo numero di personale.",
+         "Cerca e seleziona l'oggetto.",
+         "Tocca il materiale e imposta la quantità. Ogni articolo ha una foto.",
+         "Manca qualcosa? Scrivilo in «Altro materiale necessario» – puoi allegare una foto.",
+         "Firma e invia.",
+         "Il materiale viene consegnato all'oggetto entro 48 ore."],
+    PFS:["Accedi con il tuo numero di personale.",
+         "Scegli il reparto Putzfrauenservice.",
+         "Seleziona i clienti – puoi inserirne più di uno nello stesso ordine.",
+         "Per ogni cliente tocca il materiale e imposta la quantità.",
+         "Scegli se ritirare in magazzino o farti consegnare a casa.",
+         "Firma e invia.",
+         "Quando il materiale è pronto ricevi un messaggio su Beekeeper."],
+    SPEZ:["Accedi con il tuo numero di personale.",
+         "Seleziona il veicolo.",
+         "Tocca il materiale e imposta la quantità.",
+         "Firma e invia.",
+         "Quando il materiale è pronto ricevi un messaggio su Beekeeper."] },
+};
+
+const anlWort = (k) => (ANL_WORTE[S.lang] || ANL_WORTE.de)[k];
+const anlKurz = (a) => ((ANL_WORTE[S.lang] || ANL_WORTE.de).kurz)[a];
+const anlSchritte = (a) => ((ANL_SCHRITTE[S.lang] || ANL_SCHRITTE.de)[a]) || [];
+
+// Die Anleitung steht vor der Anmeldung offen, damit sie auch jemand ansehen
+// kann, der seine Personalnummer gerade nicht zur Hand hat.
+function anleitungView() {
+  const abt = S.anlAbt || "UH";
+  return `<div class="karte">
+    <div class="tabs anltabs">${["UH","PFS","SPEZ"].map(a =>
+      `<button class="${a === abt ? "an" : ""}" data-anlabt="${a}">${esc(anlKurz(a))}</button>`).join("")}</div>
+    <h1 class="anlh1">${esc(anlWort("titel"))}</h1>
+    <p class="klein">${esc(abtName(abt))}</p>
+    <ol class="anlliste">${anlSchritte(abt).map(z => `<li>${esc(z)}</li>`).join("")}</ol>
+  </div>
+  <p class="mitte"><a href="#" id="anlZurueck">${esc(anlWort("zurueck"))}</a></p>`;
+}
+
 function loginView() {
-  const inner = S.pendingUser
+  const inner = S.anleitung
+    ? anleitungView()
+    : S.pendingUser
     ? `<div class="karte mitte">
          <div class="avatar">${esc((S.pendingUser.vorname||"?")[0])}${esc(S.pendingUser.nachname[0])}</div>
          <p class="klein">${t("bestaetigenFrage")}</p>
@@ -874,6 +1003,7 @@ function loginView() {
          ${S.fehler ? `<p class="fehler">${esc(S.fehler)}</p>` : ""}
          <button class="btn voll" id="loginGo">${t("anmelden")}</button>
        </div>
+       <button class="btn sek voll anlknopf" id="anlGo">${esc(anlWort("knopf"))}</button>
        <p class="mitte"><a href="#" id="zurAdmin">${t("adminLink")}</a></p>`;
 
   return `<div class="login">
@@ -898,6 +1028,14 @@ function bindLogin() {
       S.pendingUser = r[0]; render();
     } catch { S.fehler = t("ladefehler"); render(); }
   };
+  if (el("anlGo")) el("anlGo").onclick = () => {
+    S.anleitung = true; S.fehler = ""; render();
+  };
+  if (el("anlZurueck")) el("anlZurueck").onclick = (e) => {
+    e.preventDefault(); S.anleitung = false; render();
+  };
+  document.querySelectorAll("[data-anlabt]").forEach(b =>
+    b.onclick = () => { S.anlAbt = b.dataset.anlabt; render(); });
   if (el("loginGo")) {
     el("loginGo").onclick = go;
     el("pnr").onkeydown = (e) => { if (e.key === "Enter") go(); };
