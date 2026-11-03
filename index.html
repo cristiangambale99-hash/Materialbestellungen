@@ -338,7 +338,7 @@ const DB = {
   mitarbeiter: (pnr) =>
     tabelle(`mitarbeiter_login?personalnummer=eq.${encodeURIComponent(pnr)}&select=*`),
   artikel: (abteilung) =>
-    tabelle(`artikel?abteilung=eq.${abteilung}&aktiv=is.true&select=code,kategorie,name_de,name_es,name_pt,name_it&order=kategorie,name_de`),
+    tabelle(`artikel?abteilung=eq.${abteilung}&aktiv=is.true&select=code,kategorie,name_de,name_es,name_pt,name_it,selbst_waehlbar&order=kategorie,name_de`),
   objekteSuche: (abteilung, q) =>
     tabelle(`kunden_objekte?abteilungen=cs.{${abteilung}}&aktiv=is.true&or=(kundenname.ilike.*${encodeURIComponent(q)}*,objektnummer.ilike.${encodeURIComponent(q)}*)&select=objektnummer,kundenname,adresse,hauptlager&limit=60`),
   fahrzeuge: () => tabelle(`fahrzeuge?aktiv=is.true&select=*&order=nr`),
@@ -1808,6 +1808,12 @@ function uhVerrechnungView() {
 }
 
 // --- Objekte: was der Kunde selbst besorgt ---------------------------------
+// Zur Auswahl steht das Verbrauchsmaterial, das der Kunde selbst besorgen
+// kann. Artikel, die nur über uns laufen (Staubbeutel, Staubsauger-Deo),
+// sind in der Datenbank mit selbst_waehlbar = false abgehängt.
+const selbstWaehlbar = () => (S.artikel || [])
+  .filter(a => a.kategorie === "500" && a.selbst_waehlbar !== false);
+
 function uhObjekteView() {
   const q = S.uhSuche.trim().toLowerCase();
   // Alle Kunden stehen da; das Suchfeld filtert nur.
@@ -1845,7 +1851,7 @@ function uhObjekteView() {
     </div>
     <p class="klein">«Alles der Kunde» kreuzt das ganze Verbrauchsmaterial an und
       speichert sofort. Einzelne Haken werden mit «Speichern» übernommen.</p>
-    <table class="uhtab"><tbody>${S.artikel.filter(a=>a.kategorie==="500").map(a=>`<tr>
+    <table class="uhtab"><tbody>${selbstWaehlbar().map(a=>`<tr>
       <td style="width:34px"><input type="checkbox" data-sb="${esc(a.code)}"${o.selbstbesorgung.includes(a.code)?" checked":""}></td>
       <td class="code">${esc(nrZeig(a.code))}</td><td>${esc(artName(a))}</td>
       <td class="re klein">${esc(katName(a.kategorie))}</td></tr>`).join("")}</tbody></table>
@@ -2241,7 +2247,7 @@ function bindUhAdmin() {
     render();
   };
   if (el("sbAlle")) el("sbAlle").onclick = () =>
-    sbSetzen(S.artikel.filter(a => a.kategorie === "500").map(a => a.code));
+    sbSetzen(selbstWaehlbar().map(a => a.code));
 
   if (el("sbSpeichern")) el("sbSpeichern").onclick = async () => {
     const codes = [...document.querySelectorAll("[data-sb]")]
