@@ -2721,7 +2721,7 @@ async function senden() {
           const teil = await uhAufteilen(S.gesendet);
           const raus = teil.liefern.length
             ? await mailVersand(S.gesendet, doc, "webstar", { positionen: teil.liefern, kunden: null })
-            : true;
+            : teil.selbst.length > 0;
           if (raus) await kundenmails(S.gesendet, teil);
           if (raus) {
             const a = await DB.autoFreigeben(S.gesendet.id, S.user.personalnummer);
@@ -3102,8 +3102,8 @@ async function uhAufteilen(best) {
     } catch (e) { console.warn("Objektkontakt nicht lesbar:", e); }
   }
   const selbstListe = Array.isArray(kontakt.selbstbesorgung) ? kontakt.selbstbesorgung : [];
-  const alle = (k.positionen || best.positionen || []).map(p =>
-    ({ code: p.code, name: p.name, menge: p.menge }));
+  const roh = (k.positionen && k.positionen.length) ? k.positionen : (best.positionen || []);
+  const alle = roh.map(p => ({ code: p.code, name: p.name, menge: p.menge }));
   return {
     kontakt, objektnummer: k.objektnummer || "",
     kundenname: kontakt.kundenname || k.kundenname || "",
