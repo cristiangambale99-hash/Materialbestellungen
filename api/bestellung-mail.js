@@ -102,6 +102,21 @@ function dispoText(d) {
   return zeilen.join("\n");
 }
 
+// Vermerk fuer den Teams-Kanal: ist die Bestellung bei Webstar oder nicht.
+function webstarVermerk(d) {
+  const texte = {
+    gesendet:   "An Webstar gesendet: JA, automatisch ausgelöst.",
+    wartet:     "An Webstar gesendet: NEIN – die Bestellung wartet im Adminbereich auf die Freigabe.",
+    fehler:     "An Webstar gesendet: NEIN – der Versand ist fehlgeschlagen. "
+              + "Bitte im Adminbereich auslösen.",
+    hauptlager: "An Webstar gesendet: NEIN – die Lieferung läuft über unser Hauptlager.",
+    nurselbst:  "An Webstar gesendet: NEIN – alle Artikel besorgt der Kunde selbst.",
+  };
+  const zeile = texte[d.webstar];
+  if (!zeile) return "";
+  return d.grund ? `${zeile}\nGrund: ${d.grund}` : zeile;
+}
+
 function lagerText(d) {
   const zeilen = [
     `Bestellnummer: ${d.nummer}`,
@@ -423,7 +438,8 @@ export default async function handler(req, res) {
       const teile = ["Materialbestellung", d.abteilung || "", d.mitarbeiter || "", d.personalnummer || ""];
       if (d.fahrzeug) teile.push("Fahrzeug " + d.fahrzeug);
       nachricht.subject = teile.filter(Boolean).join(" · ");
-      nachricht.text = lagerText(d);
+      const vermerk = webstarVermerk(d);
+      nachricht.text = vermerk ? vermerk + "\n\n" + lagerText(d) : lagerText(d);
     } else if (anKunde) {
       nachricht.subject = kundeBetreff(d);
       nachricht.text = kundeText(d);

@@ -2708,15 +2708,22 @@ async function senden() {
     if (ausLager) {
       try { await DB.bestHauptlager(S.gesendet.id, S.user.personalnummer, true); }
       catch (e) { console.warn(e); }
-      try { await mailVersand(S.gesendet, doc, "kanal"); } catch (e) { console.warn(e); }
+      try { await mailVersand(S.gesendet, doc, "kanal", { webstar: "hauptlager" }); }
+      catch (e) { console.warn(e); }
     } else if (uhFreigabe()) {
-      // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal,
-      // unabhaengig davon, ob sie automatisch rausgeht oder wartet.
-      try { await mailVersand(S.gesendet, doc, "kanal"); } catch (e) { console.warn(e); }
+      // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal.
+      // Die Kanalmail geht erst nach dem Versuch raus, damit im Vermerk steht,
+      // ob die Bestellung tatsaechlich bei Webstar ist.
       const pr = daten.pruefung;
       try { await DB.pruefungSetzen(S.gesendet.id, S.user.personalnummer, pr); } catch (e) { console.warn(e); }
       S.gesendet.pruefung = pr;
+      let stand = "wartet", grund = "";
+      if (pr && pr.auffaellig) {
+        grund = (pr.gruende || []).map(g => g.name ? `${g.name}: ${g.text}` : g.text)
+          .filter(Boolean).join(" · ");
+      }
       if (pr && !pr.auffaellig) {
+        stand = "fehler";
         try {
           const teil = await uhAufteilen(S.gesendet);
           const raus = teil.liefern.length
@@ -2726,9 +2733,12 @@ async function senden() {
           if (raus) {
             const a = await DB.autoFreigeben(S.gesendet.id, S.user.personalnummer);
             S.gesendet.ausgeloest = !!((Array.isArray(a) ? a[0] : a) || {}).ok;
+            stand = teil.liefern.length ? "gesendet" : "nurselbst";
           }
         } catch (e) { console.warn("Auslösung fehlgeschlagen:", e); }
       }
+      try { await mailVersand(S.gesendet, doc, "kanal", { webstar: stand, grund }); }
+      catch (e) { console.warn(e); }
     }
     try { if (doc) doc.save(`Lagerauftrag_${S.gesendet.nummer}.pdf`); } catch (e) { console.warn(e); }
   } catch (e) {
