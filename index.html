@@ -2769,23 +2769,48 @@ function pdfBauen(best) {
   feld(W/2, "PERSONALNUMMER", S.user.personalnummer || "");
   y += 14;
 
-  doc.setFillColor(245,249,249).roundedRect(14, y, W-28, best.daten.fahrzeug_nr?18:24, 1.5,1.5,"F");
+  // Lieferblock: beim Objekt gehoert die Adresse dazu, sonst sucht das Lager sie
+  // im Mail zusammen. Je Kunde eine fette Zeile mit Name und Objekt-Nr., darunter
+  // die Adresse.
+  const fahr = !!best.daten.fahrzeug_nr;
+  const liefArt = best.daten.lieferart || lieferart();
+  const liefZeilen = [];
+  if (!fahr) {
+    if (liefArt === "mitarbeiter_adresse" && best.daten.lieferadresse) {
+      liefZeilen.push({ text: best.daten.lieferadresse });
+    } else if (liefArt === "magazin_abholung") {
+      liefZeilen.push({ text: LIEFERART_TEXT.magazin_abholung.de });
+    } else if ((best.kunden || []).length) {
+      best.kunden.forEach(k => {
+        liefZeilen.push({ text: k.kundenname
+          + (k.objektnummer ? ` · ${t("objektNr")} ${k.objektnummer}` : "") });
+        const adr = k.adresse || (best.kunden.length === 1 ? best.daten.lieferadresse : "");
+        if (adr) liefZeilen.push({ text: adr, klein: true });
+      });
+    } else {
+      liefZeilen.push({ text: (LIEFERART_TEXT[liefArt] || {}).de || "—" });
+    }
+  }
+  const liefHoehe = fahr ? 18
+    : Math.max(24, 9 + liefZeilen.reduce((n, z) => n + (z.klein ? 5 : 6.5), 0));
+
+  doc.setFillColor(245,249,249).roundedRect(14, y, W-28, liefHoehe, 1.5,1.5,"F");
   doc.setFont("helvetica","bold").setFontSize(8).setTextColor(...G);
-  if (best.daten.fahrzeug_nr) {
+  if (fahr) {
     const f = S.fahrzeuge.find(v=>v.nr===best.daten.fahrzeug_nr) || {};
     doc.text("FAHRZEUG", 18, y+6);
     doc.setFontSize(12).setTextColor(...I).text(`Fahrzeug ${best.daten.fahrzeug_nr} – ${f.bezeichnung||""}`, 18, y+12);
     y += 26;
   } else {
     doc.text("LIEFERUNG", 18, y+6);
-    const art = best.daten.lieferart || lieferart();
-    const liefTxt = art === "mitarbeiter_adresse" && best.daten.lieferadresse
-      ? best.daten.lieferadresse
-      : art === "magazin_abholung"
-        ? LIEFERART_TEXT.magazin_abholung.de
-        : (best.kunden.map(k=>k.kundenname).join(", ") || LIEFERART_TEXT[art].de);
-    doc.setFontSize(12).setTextColor(...I).text(liefTxt, 18, y+12);
-    y += 32;
+    let zy = y + 12;
+    liefZeilen.forEach(z => {
+      if (z.klein) doc.setFont("helvetica","normal").setFontSize(10).setTextColor(...G);
+      else doc.setFont("helvetica","bold").setFontSize(12).setTextColor(...I);
+      doc.text(String(z.text), 18, zy);
+      zy += z.klein ? 5 : 6.5;
+    });
+    y += liefHoehe + 8;
   }
 
   const zeilen = [];
