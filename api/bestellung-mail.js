@@ -149,6 +149,15 @@ function lagerText(d) {
 }
 
 // ------------------------------------------------------------------- Webstar
+// Lieferadresse, wie sie Webstar sehen soll: zuoberst das Unternehmen,
+// darunter Strasse und Ort, zuletzt die Objektnummer.
+function lieferZeilen(d) {
+  const o = (Array.isArray(d.kunden) && d.kunden[0]) || {};
+  const adresse = String(d.lieferadresse || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return [o.name || "", ...adresse, o.objektnummer ? "Objekt-Nr. " + o.objektnummer : ""]
+    .filter(Boolean);
+}
+
 function webstarText(d) {
   const objekt = (d.kunden && d.kunden[0]) || {};
   const z = [];
@@ -158,7 +167,11 @@ function webstarText(d) {
   z.push("");
   z.push(`Bestellnummer:  ${d.nummer}`);
   if (datum(d.bestelldatum)) z.push(`Bestelldatum:   ${datum(d.bestelldatum)}`);
-  if (d.lieferadresse)       z.push(`Lieferadresse:  ${d.lieferadresse}`);
+  const liefer = lieferZeilen(d);
+  if (liefer.length) {
+    z.push(`Lieferadresse:  ${liefer[0]}`);
+    liefer.slice(1).forEach((l) => z.push(`                ${l}`));
+  }
   z.push("");
   z.push("Positionen");
   flach(d.kunden, d.positionen).forEach((p) => {
@@ -345,9 +358,11 @@ function webstarHtml(d) {
     </table>
   </td></tr>
 
-  ${d.lieferadresse ? `<tr><td style="padding:22px 28px 0">
+  ${lieferZeilen(d).length ? `<tr><td style="padding:22px 28px 0">
     <div style="font:600 9px/1.3 Verdana,Geneva,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:${TUERKIS}">Lieferadresse</div>
-    <div style="font:13px/1.6 Verdana,Geneva,sans-serif;color:${INK};margin-top:5px">${esc(d.lieferadresse)}</div>
+    <div style="font:13px/1.6 Verdana,Geneva,sans-serif;color:${INK};margin-top:5px">${
+      lieferZeilen(d).map((l, i) => i === 0
+        ? `<strong>${esc(l)}</strong>` : esc(l)).join("<br>")}</div>
   </td></tr>` : ""}
 
   <tr><td style="padding:22px 28px 0;font:13px/1.65 Verdana,Geneva,sans-serif;color:${INK}">

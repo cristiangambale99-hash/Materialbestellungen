@@ -2727,7 +2727,7 @@ async function senden() {
         try {
           const teil = await uhAufteilen(S.gesendet);
           const raus = teil.liefern.length
-            ? await mailVersand(S.gesendet, doc, "webstar", { positionen: teil.liefern, kunden: null })
+            ? await mailVersand(S.gesendet, doc, "webstar", webstarNutzlast(S.gesendet, teil))
             : teil.selbst.length > 0;
           if (raus) await kundenmails(S.gesendet, teil);
           if (raus) {
@@ -3102,6 +3102,19 @@ function bindAdmin() {
 // Freigabe der Unterhaltsreinigung: erst die Mail mit dem Lagerauftrag an
 // Webstar, und nur wenn die draussen ist, wird die Freigabe festgehalten.
 // Was liefern wir, was besorgt der Kunde selbst? Entscheidet sich am Objekt.
+// Was Webstar erhaelt: die zu liefernden Positionen, dazu Kundenname,
+// Objektnummer und Adresse - damit auf Mail und Bestellschein unter der
+// Lieferadresse immer das Unternehmen steht und nicht nur die Strasse.
+function webstarNutzlast(best, teil) {
+  return {
+    positionen: teil.liefern,
+    kunden: [{ name: teil.kundenname, objektnummer: teil.objektnummer,
+               positionen: teil.liefern }],
+    lieferadresse: best.daten?.lieferadresse || best.lieferadresse
+                   || (teil.kontakt && teil.kontakt.adresse) || null,
+  };
+}
+
 async function uhAufteilen(best) {
   const k = (best.kunden || [])[0] || {};
   let kontakt = {};
@@ -3151,7 +3164,7 @@ async function adminFreigeben(b) {
     try { doc = pdfBauen(ersatz); } catch (e) { console.warn("PDF nicht erzeugbar:", e); }
     const teil = await uhAufteilen(ersatz);
     ok = teil.liefern.length
-      ? await mailVersand(ersatz, doc, "webstar", { positionen: teil.liefern, kunden: null })
+      ? await mailVersand(ersatz, doc, "webstar", webstarNutzlast(ersatz, teil))
       : true;
     if (ok) await kundenmails(ersatz, teil);
   });
