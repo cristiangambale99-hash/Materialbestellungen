@@ -95,6 +95,9 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .chip{border:1px solid var(--linie);background:#fff;color:var(--ink);border-radius:999px;
   padding:9px 16px;font-size:13.5px;cursor:pointer;white-space:nowrap}
 .chip.an{background:var(--tuerkis);border-color:var(--tuerkis);color:#fff}
+.chatbox{border:1px solid var(--linie);border-radius:9px;padding:12px 14px;margin-top:14px}
+.chatbox .reihe{margin-top:8px}
+.chatbox input{flex:1 1 180px;min-width:0}
 .kenn{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}
 .kenn.warn{background:#F7E4BF;color:#8A5A06}.kenn.info{background:#DFF1F2;color:#1B8384}.kenn.gruen{background:#D7F0EB;color:#1C6B5F}
 .hinweisbox{border-radius:9px;padding:10px 12px;margin-top:10px}
@@ -376,6 +379,8 @@ const DB = {
   adminZugang: (code) => rpc("admin_zugang_v5", { code }),
   hauptlagerSetzen: (code, nr, wert) =>
     rpc("objekt_hauptlager_setzen", { code, p_objektnummer: nr, p_wert: wert }),
+  gruppenchatSetzen: (code, nr, wert) =>
+    rpc("objekt_gruppenchat_setzen", { code, p_objektnummer: nr, p_wert: wert }),
   bestHauptlager: (id, pnr, wert) =>
     rpc("bestellung_hauptlager_setzen", { best_id: id, personalnummer: pnr, wert }),
   bilderSetzen: (id, pnr, bilder) =>
@@ -1905,6 +1910,9 @@ function uhKarte(b) {
 
     <div class="vorschau">
       <b class="klein">Beekeeper-Gruppenchat «${esc(k.kundenname||"")}»</b>
+      <p class="klein">${(S.uhObjekte.find(x=>x.objektnummer===k.objektnummer)||{}).gruppenchat
+        ? "Geht bei der Auslösung in diesen Chat."
+        : "Noch kein Chat hinterlegt – die Meldung geht an " + esc(b.mitarbeiter) + "."}</p>
       <pre>Materialbestellung ausgelöst
 
 @${esc(b.mitarbeiter)} hat für ${esc(k.kundenname||"")} (Objekt-Nr. ${esc(k.objektnummer||"")}) Material bestellt:
@@ -1999,6 +2007,20 @@ function uhObjekteView() {
           Sobald er sie vorbereitet hat, meldet die App das an unterhalt@clean-service.ch
           zum Disponieren.</span></span>
     </label>
+
+    <div class="chatbox">
+      <p class="klein fett">Beekeeper-Gruppenchat des Kunden</p>
+      <p class="klein">Sobald hier die Chat-ID steht, geht die Meldung «Materialbestellung
+        ausgelöst» in diesen Chat statt an die bestellende Person. Die ID findest du in
+        Beekeeper, der Chat heisst «${esc(o.kundenname)} ${esc(o.objektnummer)}».</p>
+      <div class="reihe">
+        <input id="chatId" value="${esc(o.gruppenchat || "")}" placeholder="Chat-ID einfügen">
+        <button class="btn sek" id="chatSpeichern">Speichern</button>
+      </div>
+      <p class="klein">${o.gruppenchat
+        ? "Gruppenchat hinterlegt – der Kunde wird informiert."
+        : "Noch kein Gruppenchat – die Meldung geht ersatzweise an die bestellende Person."}</p>
+    </div>
 
     <div class="zeile" style="margin-top:14px">
       <p class="klein fett">Der Kunde besorgt selbst</p>
@@ -2437,6 +2459,18 @@ function bindUhAdmin() {
     render();
   };
 
+  if (el("chatSpeichern")) el("chatSpeichern").onclick = async () => {
+    const feld = el("chatId");
+    if (!feld) return;
+    const wert = feld.value.trim();
+    S.fehler = "";
+    try {
+      await DB.gruppenchatSetzen(S.adminCode, S.uhObjekt, wert);
+      const o = S.uhObjekte.find(x => x.objektnummer === S.uhObjekt);
+      if (o) o.gruppenchat = wert;
+    } catch (e) { S.fehler = e.message; }
+    render();
+  };
   if (el("vErl")) el("vErl").onchange = (e) => { S.uhVerrErledigt = e.target.checked; render(); };
   document.querySelectorAll("[data-verr]").forEach(b =>
     b.onclick = async () => {
