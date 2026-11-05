@@ -85,6 +85,16 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .pruefbox .gruende{margin:8px 0 0;padding-left:18px;font-size:12.5px;color:#6B5A3C}
 .pruefbox .gruende li{margin-bottom:3px}
 .pruefbox input[type=number]{width:72px;text-align:right}
+.uhpos tr.notiz td{background:#FFFBF2}
+.uhpos .weg{border:1px solid var(--linie);background:#fff;color:#8A5A06;border-radius:7px;
+  width:28px;height:28px;font-size:16px;line-height:1;cursor:pointer}
+.uhpos .weg:hover{background:#FDF0DC;border-color:#E0C79A}
+.ergaenzen{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.ergaenzen select{flex:1 1 220px;min-width:0}
+.ergaenzen input[type=number]{width:72px;text-align:right}
+.chip{border:1px solid var(--linie);background:#fff;color:var(--ink);border-radius:999px;
+  padding:9px 16px;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.chip.an{background:var(--tuerkis);border-color:var(--tuerkis);color:#fff}
 .kenn{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}
 .kenn.warn{background:#F7E4BF;color:#8A5A06}.kenn.info{background:#DFF1F2;color:#1B8384}.kenn.gruen{background:#D7F0EB;color:#1C6B5F}
 .hinweisbox{border-radius:9px;padding:10px 12px;margin-top:10px}
@@ -391,6 +401,10 @@ const DB = {
   objektKontakt: (nr) => rpc("objekt_kontakt", { p_objektnummer: nr }),
   mengenSetzen: (code, id, positionen) =>
     rpc("bestellung_mengen_setzen", { code, best_id: id, positionen }),
+  // Ersetzt die Positionsliste vollstaendig: entfernte Zeilen verschwinden
+  // wirklich, ergaenzte kommen dazu, Freitext bleibt Freitext.
+  positionenSetzen: (code, id, positionen) =>
+    rpc("bestellung_positionen_v3", { code, best_id: id, positionen }),
   pruefungSetzen: (id, pnr, pruefung) =>
     rpc("bestellung_pruefung_setzen_v2", { best_id: id, personalnummer: pnr, pruefung }),
   autoFreigeben: (id, pnr) =>
@@ -673,7 +687,7 @@ const S = {
   fahrzeug: "",
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   anleitung: false, anlAbt: "UH",
-  adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH",
+  adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH", adminNurHl: false,
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
   inventarForm: false, inventar: [], invTab: "inventar", invAbt: "", invSuche: "", invNurWenig: false,
@@ -1076,7 +1090,7 @@ function bindLogin() {
         S.uhObjekte = zz.objekte || [];
         S.uhVerrechnung = zz.verrechnung || [];
         S.rechnungen = zz.rechnungen || [];
-        if (S.adminRolle === "uh" && !S.artikel.length) {
+        if ((S.adminRolle === "uh" || S.adminRolle === "lager") && !S.artikel.length) {
           try { S.artikel = await DB.artikel("UH"); } catch {}
         }
         S.admin = true; S.adminCode = code; S.adminForm = false; S.fehler = "";
@@ -1754,9 +1768,11 @@ function adminView() {
   if (S.adminRolle === "uh") return uhAdminView();
   const d = S.adminDaten;
   const z = (s) => d.filter(b=>b.status===s).length;
+  const hl = d.filter(b => b.hauptlager && b.status !== "erledigt").length;
   const gefiltert = d.filter(b =>
     (!S.adminFilterAbt || b.abteilung===S.adminFilterAbt) &&
-    (!S.adminFilterStatus || b.status===S.adminFilterStatus));
+    (!S.adminFilterStatus || b.status===S.adminFilterStatus) &&
+    (!S.adminNurHl || b.hauptlager));
   return `<div class="kopfzeile"><div><h1>${t("adminTitelDash")}</h1>
       <p class="klein">${t("adminHinweis")}</p></div>
       <button class="btn sek" id="refresh">${t("aktualisieren")}</button></div>
@@ -1779,6 +1795,7 @@ function adminView() {
         <option value="freigegeben"${S.adminFilterStatus==="freigegeben"?" selected":""}>${t("freigegeben")}</option>
         <option value="bereit"${S.adminFilterStatus==="bereit"?" selected":""}>${t("bereit")}</option>
         <option value="erledigt"${S.adminFilterStatus==="erledigt"?" selected":""}>${t("erledigt")}</option></select>
+      <button class="chip${S.adminNurHl?" an":""}" id="fHl">Hauptlager${hl?` · ${hl}`:""}</button>
     </div>
     ${S.fehler?`<p class="fehler">${esc(S.fehler)}</p>`:""}
     ${S.lagerTab === "auswertung" ? ""
@@ -2270,6 +2287,23 @@ function adminKarte(b) {
 // Der eine Handgriff, der je Bestellung ansteht: Unterhaltsreinigung
 // kontrollieren und freigeben, Putzfrauenservice bereit melden oder den
 // Liefertermin setzen. Spezialreinigung und Springer bleiben wie bisher.
+// Im Adminbereich darf eine Bestellung ergaenzt werden, bevor sie zu Webstar
+// geht: das Buero haengt den Artikel an, den die Notiz beschrieben hat.
+function ergaenzenZeile(b) {
+  const liste = (S.artikel || []).filter(a => a.kategorie !== "frei");
+  if (!liste.length) return "";
+  const kat = [...new Set(liste.map(a => a.kategorie))];
+  return `<div class="ergaenzen">
+    <select data-aartikel="${b.id}">
+      <option value="">Artikel ergänzen…</option>
+      ${kat.map(k => `<optgroup label="${esc(katName(k))}">${liste.filter(a => a.kategorie === k)
+        .map(a => `<option value="${esc(a.code)}">${esc(artName(a))}</option>`).join("")}</optgroup>`).join("")}
+    </select>
+    <input type="number" min="1" value="1" data-amenge-neu="${b.id}">
+    <button class="btn sek" data-aplus="${b.id}">Hinzufügen</button>
+  </div>`;
+}
+
 function adminAktion(b) {
   const laedt = S.adminLaden === b.id;
   const knopf = (feld, text) => `<button class="btn voll" data-${feld}="${b.id}" ${laedt?"disabled":""}>${laedt?t("sendet"):text}</button>`;
@@ -2295,11 +2329,16 @@ function adminAktion(b) {
         : "Für dieses Objekt liegt kein Verlauf vor, verglichen wird mit dem Schnitt aller Objekte."}</p>
       <ul class="gruende">${(pr.auffaellig ? pr.gruende : [{text:"Mengen angepasst, jetzt im Rahmen."}])
         .map(g=>`<li>${esc(g.name ? g.name + ": " + g.text : g.text)}</li>`).join("")}</ul>
-      <table class="uhpos">${b.positionen.map((p,i)=>`<tr>
+      <table class="uhpos">${b.positionen.map((p,i)=>`<tr${p.freitext?' class="notiz"':""}>
         <td class="code">${esc(nrZeig(p.code) || "—")}</td>
-        <td>${esc(p.anzeige || p.name)}</td>
+        <td>${esc(p.anzeige || p.name)}
+          ${p.freitext?`<span class="kenn warn">Notiz</span>`:""}</td>
         <td class="re" style="width:92px">
-          <input type="number" min="0" value="${p.menge}" data-amenge="${b.id}:${i}"></td></tr>`).join("")}</table>
+          <input type="number" min="0" value="${p.menge}" data-amenge="${b.id}:${i}"></td>
+        <td class="re" style="width:34px"><button class="weg" data-aweg="${b.id}:${i}"
+          title="${p.freitext?"Notiz entfernen":"Position entfernen"}"
+          aria-label="${p.freitext?"Notiz entfernen":"Position entfernen"}">×</button></td></tr>`).join("")}</table>
+      ${ergaenzenZeile(b)}
       <p class="klein">Bestellwert CHF ${pr.wert.toFixed(2)}${
         pr.monat_fr ? " · Monatsschnitt des Objekts CHF " + pr.monat_fr.toFixed(2) : ""}</p>
       ${knopf("frei", "Bestellung auslösen")}</div>`;
@@ -3040,8 +3079,33 @@ function bindAdmin() {
       if (!b) return;
       const n = Math.max(0, parseInt(inp.value, 10) || 0);
       if (n === 0) b.positionen.splice(Number(i), 1); else b.positionen[Number(i)].menge = n;
-      DB.mengenSetzen(S.adminCode, b.id, b.positionen).catch(()=>{});
-      render();
+      positionenSichern(b);
+    };
+  });
+  document.querySelectorAll("[data-aweg]").forEach(knopf => {
+    knopf.onclick = () => {
+      const [id, i] = knopf.dataset.aweg.split(":");
+      const b = S.adminDaten.find(x => String(x.id) === id);
+      if (!b) return;
+      b.positionen.splice(Number(i), 1);
+      positionenSichern(b);
+    };
+  });
+  document.querySelectorAll("[data-aplus]").forEach(knopf => {
+    knopf.onclick = () => {
+      const id = knopf.dataset.aplus;
+      const b = S.adminDaten.find(x => String(x.id) === id);
+      const wahl = document.querySelector(`[data-aartikel="${id}"]`);
+      const feld = document.querySelector(`[data-amenge-neu="${id}"]`);
+      if (!b || !wahl || !wahl.value) return;
+      const a = (S.artikel || []).find(x => x.code === wahl.value);
+      if (!a) return;
+      const menge = Math.max(1, parseInt(feld && feld.value, 10) || 1);
+      const da = b.positionen.find(p => p.code === a.code);
+      if (da) da.menge = Number(da.menge) + menge;
+      else b.positionen.push({ code: a.code, name: a.name_de, menge: menge,
+                               freitext: false, block_id: (b.kunden[0]||{}).block_id || null });
+      positionenSichern(b);
     };
   });
   bindAuswertung();
@@ -3052,6 +3116,7 @@ function bindAdmin() {
   if (!el("fAbt")) return;
   el("fAbt").onchange = (e) => { S.adminFilterAbt = e.target.value; render(); };
   el("fStatus").onchange = (e) => { S.adminFilterStatus = e.target.value; render(); };
+  if (el("fHl")) el("fHl").onclick = () => { S.adminNurHl = !S.adminNurHl; render(); };
   document.querySelectorAll("[data-status]").forEach(sel => sel.onchange = async () => {
     const id = +sel.dataset.status;
     try {
@@ -3097,6 +3162,21 @@ function bindAdmin() {
     } catch (e) { S.fehler = e.message; }
     S.adminLaden = null; render();
   });
+}
+
+// Speichert die Positionsliste einer Bestellung so, wie sie im Adminbereich
+// jetzt dasteht. Entfernte Zeilen - auch eine Notiz - sind damit wirklich weg.
+async function positionenSichern(b) {
+  S.fehler = "";
+  render();
+  try {
+    await DB.positionenSetzen(S.adminCode, b.id, (b.positionen || []).map(p => ({
+      code: p.code || null, name: p.name, menge: p.menge,
+      freitext: !!p.freitext, block_id: p.block_id || null })));
+  } catch (e) {
+    S.fehler = "Änderung nicht gespeichert: " + e.message;
+    render();
+  }
 }
 
 // Freigabe der Unterhaltsreinigung: erst die Mail mit dem Lagerauftrag an
