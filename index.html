@@ -98,6 +98,16 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .chatbox{border:1px solid var(--linie);border-radius:9px;padding:12px 14px;margin-top:14px}
 .chatbox .reihe{margin-top:8px}
 .chatbox input{flex:1 1 180px;min-width:0}
+.ergaenzen.manu input[data-anr]{flex:0 1 200px}
+.ergaenzen.manu input[data-abez]{flex:1 1 220px;min-width:0}
+.leiselink{background:none;border:0;padding:6px 0;color:var(--tuerkis-d);font-size:12.5px;
+  font-weight:bold;cursor:pointer;text-align:left}
+.leiselink:hover{text-decoration:underline}
+.fehlerzeile{color:#A4342B}
+.verlauf{border-top:1px dashed var(--linie);margin-top:10px;padding-top:9px}
+.verlauf ul{margin:6px 0 6px;padding-left:0;list-style:none}
+.verlauf li{padding:3px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.verlauf li .code{font-family:'Courier New',monospace;color:var(--grau)}
 .kenn{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}
 .kenn.warn{background:#F7E4BF;color:#8A5A06}.kenn.info{background:#DFF1F2;color:#1B8384}.kenn.gruen{background:#D7F0EB;color:#1C6B5F}
 .hinweisbox{border-radius:9px;padding:10px 12px;margin-top:10px}
@@ -410,6 +420,9 @@ const DB = {
   // wirklich, ergaenzte kommen dazu, Freitext bleibt Freitext.
   positionenSetzen: (code, id, positionen) =>
     rpc("bestellung_positionen_v3", { code, best_id: id, positionen }),
+  manuellPruefen: (code, nr, name) =>
+    rpc("artikel_manuell_pruefen_v4", { code, p_nr: nr, p_name: name }),
+  manuellListe: (code) => rpc("artikel_manuell_liste_v2", { code }),
   pruefungSetzen: (id, pnr, pruefung) =>
     rpc("bestellung_pruefung_setzen_v2", { best_id: id, personalnummer: pnr, pruefung }),
   autoFreigeben: (id, pnr) =>
@@ -693,6 +706,7 @@ const S = {
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   anleitung: false, anlAbt: "UH",
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH", adminNurHl: false,
+  adminManuell: {}, adminManuellFehler: {}, manuell: [],
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
   inventarForm: false, inventar: [], invTab: "inventar", invAbt: "", invSuche: "", invNurWenig: false,
@@ -785,7 +799,8 @@ function uhPruefung(objektnummer, positionen) {
 // Sprachwechsel auch bereits erfasste Positionen umstellt. Gespeichert bleibt
 // die deutsche Bezeichnung.
 // Platzhalter wie 500-GS35 werden nirgends als Artikelnummer gezeigt.
-const nrZeig = (code) => /^\d{3}-[\d.]+$/.test(String(code || "")) ? String(code) : "";
+const nrZeig = (code) => /^\d{3}-[\d.]+$/.test(String(code || ""))
+  || /^[\d][\d.\-\/]*$/.test(String(code || "")) ? String(code) : "";
 
 const artAnzeige = (p) => {
   const a = (S.artikel || []).find(x => x.code === p.code);
@@ -1095,8 +1110,9 @@ function bindLogin() {
         S.uhObjekte = zz.objekte || [];
         S.uhVerrechnung = zz.verrechnung || [];
         S.rechnungen = zz.rechnungen || [];
-        if ((S.adminRolle === "uh" || S.adminRolle === "lager") && !S.artikel.length) {
-          try { S.artikel = await DB.artikel("UH"); } catch {}
+        if (S.adminRolle === "uh" || S.adminRolle === "lager") {
+          if (!S.artikel.length) { try { S.artikel = await DB.artikel("UH"); } catch {} }
+          try { S.manuell = await DB.manuellListe(code); } catch {}
         }
         S.admin = true; S.adminCode = code; S.adminForm = false; S.fehler = "";
       } catch { S.fehler = t("adminFehler"); }
@@ -2311,19 +2327,53 @@ function adminKarte(b) {
 // Liefertermin setzen. Spezialreinigung und Springer bleiben wie bisher.
 // Im Adminbereich darf eine Bestellung ergaenzt werden, bevor sie zu Webstar
 // geht: das Buero haengt den Artikel an, den die Notiz beschrieben hat.
+// Ein Artikel, den es in unserem Sortiment noch nicht gibt: Die Nummer
+// stammt aus dem Katalog des Lieferanten und wird hier von Hand erfasst.
+const KAT_GRUPPEN = ["100","300","500","600","800"];
+const manuellerArtikel = (p) =>
+  !p.freitext && !!p.code && !/^\d{3}-/.test(String(p.code))
+  && !(S.artikel || []).some(a => a.code === p.code);
+
+const malText = (n) => n === 1 ? "1 mal verwendet" : n + " mal verwendet";
+
 function ergaenzenZeile(b) {
   const liste = (S.artikel || []).filter(a => a.kategorie !== "frei");
-  if (!liste.length) return "";
   const kat = [...new Set(liste.map(a => a.kategorie))];
-  return `<div class="ergaenzen">
+  const verlauf = (S.manuell || []).filter(m => m.anzahl < 3);
+  const offen = !!(S.adminManuell || {})[b.id];
+  const fehler = (S.adminManuellFehler || {})[b.id];
+  return `${liste.length || verlauf.length ? `<div class="ergaenzen">
     <select data-aartikel="${b.id}">
       <option value="">Artikel ergänzen…</option>
       ${kat.map(k => `<optgroup label="${esc(katName(k))}">${liste.filter(a => a.kategorie === k)
         .map(a => `<option value="${esc(a.code)}">${esc(artName(a))}</option>`).join("")}</optgroup>`).join("")}
+      ${verlauf.length ? `<optgroup label="Von Hand erfasst – noch nicht im Sortiment">${
+        verlauf.map(m => `<option value="${esc(m.nr)}">${esc(m.nr)} · ${esc(m.name)} (${malText(m.anzahl)})</option>`).join("")
+      }</optgroup>` : ""}
     </select>
     <input type="number" min="1" value="1" data-amenge-neu="${b.id}">
     <button class="btn sek" data-aplus="${b.id}">Hinzufügen</button>
-  </div>`;
+  </div>` : ""}
+  <button class="leiselink" data-amanu="${b.id}">${offen
+    ? "Manuelle Erfassung schliessen"
+    : "Artikel nicht im Sortiment? Webstar-Nummer erfassen"}</button>
+  ${offen ? `<div class="ergaenzen manu">
+    <input data-anr="${b.id}" placeholder="Webstar-Nr." autocomplete="off">
+    <input data-abez="${b.id}" placeholder="Bezeichnung" autocomplete="off">
+    <input type="number" min="1" value="1" data-amengem="${b.id}">
+    <button class="btn sek" data-aplusm="${b.id}">Hinzufügen</button>
+  </div>
+  ${fehler ? `<p class="klein fehlerzeile">${esc(fehler)}</p>` : ""}
+  <p class="klein">Nur die Artikelnummer von Webstar erfassen, unsere Warengruppe kommt später
+    automatisch davor. Ab der dritten Bestellung erkennt die App die Warengruppe aus der
+    Bezeichnung, nimmt den Artikel ins Sortiment auf und bittet die Logistik, ihn im Aduna
+    zu erfassen.</p>` : ""}
+  ${verlauf.length ? `<div class="verlauf">
+    <p class="klein fett">Von Hand erfasst – noch nicht im Sortiment</p>
+    <ul class="klein">${verlauf.map(m => `<li><span class="code">${esc(m.nr)}</span>
+      ${esc(m.name)} <span class="kenn warn">${malText(m.anzahl)}</span></li>`).join("")}</ul>
+    <p class="klein">Beim dritten Mal rutscht der Artikel nach oben ins feste Sortiment.</p>
+  </div>` : ""}`;
 }
 
 function adminAktion(b) {
@@ -2354,7 +2404,8 @@ function adminAktion(b) {
       <table class="uhpos">${b.positionen.map((p,i)=>`<tr${p.freitext?' class="notiz"':""}>
         <td class="code">${esc(nrZeig(p.code) || "—")}</td>
         <td>${esc(p.anzeige || p.name)}
-          ${p.freitext?`<span class="kenn warn">Notiz</span>`:""}</td>
+          ${p.freitext?`<span class="kenn warn">Notiz</span>`:""}
+          ${manuellerArtikel(p)?`<span class="kenn info">manuell</span>`:""}</td>
         <td class="re" style="width:92px">
           <input type="number" min="0" value="${p.menge}" data-amenge="${b.id}:${i}"></td>
         <td class="re" style="width:34px"><button class="weg" data-aweg="${b.id}:${i}"
@@ -3133,12 +3184,56 @@ function bindAdmin() {
       const feld = document.querySelector(`[data-amenge-neu="${id}"]`);
       if (!b || !wahl || !wahl.value) return;
       const a = (S.artikel || []).find(x => x.code === wahl.value);
-      if (!a) return;
+      const m = (S.manuell || []).find(x => x.nr === wahl.value);
+      if (!a && !m) return;
+      const code = a ? a.code : m.nr;
+      const name = a ? a.name_de : m.name;
       const menge = Math.max(1, parseInt(feld && feld.value, 10) || 1);
-      const da = b.positionen.find(p => p.code === a.code);
+      const da = b.positionen.find(p => p.code === code);
       if (da) da.menge = Number(da.menge) + menge;
-      else b.positionen.push({ code: a.code, name: a.name_de, menge: menge,
+      else b.positionen.push({ code: code, name: name, menge: menge,
                                freitext: false, block_id: (b.kunden[0]||{}).block_id || null });
+      positionenSichern(b);
+    };
+  });
+  document.querySelectorAll("[data-amanu]").forEach(knopf => {
+    knopf.onclick = () => {
+      const id = knopf.dataset.amanu;
+      S.adminManuell = { ...(S.adminManuell || {}), [id]: !(S.adminManuell || {})[id] };
+      S.adminManuellFehler = { ...(S.adminManuellFehler || {}), [id]: "" };
+      render();
+    };
+  });
+  document.querySelectorAll("[data-aplusm]").forEach(knopf => {
+    knopf.onclick = () => {
+      const id = knopf.dataset.aplusm;
+      const b = S.adminDaten.find(x => String(x.id) === id);
+      const nrFeld = document.querySelector(`[data-anr="${id}"]`);
+      const bezFeld = document.querySelector(`[data-abez="${id}"]`);
+      const mFeld = document.querySelector(`[data-amengem="${id}"]`);
+      if (!b || !nrFeld || !bezFeld) return;
+      // Erfasst wird nur die Nummer von Webstar. Tippt jemand aus Gewohnheit
+      // unsere Warengruppe davor, wird sie stillschweigend entfernt.
+      let nr = nrFeld.value.trim().replace(/\s+/g, "");
+      const vorne = nr.match(/^(100|300|500|600|800)-(.+)$/);
+      if (vorne) nr = vorne[2];
+      const bez = bezFeld.value.trim();
+      const meldung = (text) => {
+        S.adminManuellFehler = { ...(S.adminManuellFehler || {}), [id]: text };
+        render();
+      };
+      if (!nr) return meldung("Webstar-Nummer fehlt.");
+      if (!/^[\w.\-\/]+$/.test(nr)) return meldung("Die Webstar-Nummer enthält unerlaubte Zeichen.");
+      if (!bez) return meldung("Bezeichnung fehlt.");
+      if (b.positionen.some(p => p.code === nr))
+        return meldung("Diese Nummer steht bereits in der Bestellung.");
+      const schon = (S.artikel || []).find(a => a.code === nr || a.code.endsWith("-" + nr));
+      if (schon) return meldung("Diese Nummer führen wir bereits als " + schon.code
+        + " – bitte oben aus der Liste wählen.");
+      const menge = Math.max(1, parseInt(mFeld && mFeld.value, 10) || 1);
+      b.positionen.push({ code: nr, name: bez, menge: menge, freitext: false,
+                          block_id: (b.kunden[0]||{}).block_id || null });
+      S.adminManuellFehler = { ...(S.adminManuellFehler || {}), [id]: "" };
       positionenSichern(b);
     };
   });
@@ -3207,6 +3302,9 @@ async function positionenSichern(b) {
     await DB.positionenSetzen(S.adminCode, b.id, (b.positionen || []).map(p => ({
       code: p.code || null, name: p.name, menge: p.menge,
       freitext: !!p.freitext, block_id: p.block_id || null })));
+    if (S.adminRolle === "uh" || S.adminRolle === "lager") {
+      try { S.manuell = await DB.manuellListe(S.adminCode); render(); } catch {}
+    }
   } catch (e) {
     S.fehler = "Änderung nicht gespeichert: " + e.message;
     render();
@@ -3286,10 +3384,39 @@ async function adminFreigeben(b) {
     if (!ok) S.fehler = t("webstarFehler");
     else {
       await DB.freigeben(S.adminCode, b.id);
+      await sortimentPruefen(b);
       S.adminDaten = await DB.adminListe(S.adminCode);
     }
   } catch (e) { S.fehler = e.message; }
   S.adminLaden = null; render();
+}
+
+// Von Hand erfasste Artikel: Sobald dieselbe Nummer dreimal bestellt wurde,
+// gehoert sie ins Sortiment. Die App nimmt sie in die passende Warengruppe
+// auf und bittet die Logistik, den Artikel im Aduna zu erfassen.
+async function sortimentPruefen(b) {
+  const manuell = (b.positionen || []).filter(manuellerArtikel);
+  for (const p of manuell) {
+    let r = null;
+    try {
+      const a = await DB.manuellPruefen(S.adminCode, p.code, p.name);
+      r = (Array.isArray(a) ? a[0] : a) || {};
+    } catch (e) { console.warn("Sortimentspruefung fehlgeschlagen:", e); continue; }
+    if (!r.aufgenommen) continue;
+    try {
+      await mailVersand(b, null, "logistik", {
+        art: "logistik-" + p.code,
+        webstar_nr: r.webstar_nr || p.code,
+        artikelnummer: r.code, artikelname: r.name || p.name,
+        kategorie: r.kategorie, kategorie_name: katName(r.kategorie),
+        anzahl: r.anzahl, bestellungen: r.bestellungen || "",
+      });
+    } catch (e) { console.warn("Mail an die Logistik fehlgeschlagen:", e); }
+  }
+  if (manuell.length) {
+    try { S.artikel = await DB.artikel("UH"); } catch {}
+    try { S.manuell = await DB.manuellListe(S.adminCode); } catch {}
+  }
 }
 
 // Der Lagerist druckt aus der Datenbank; Aufbau wie beim Absenden.

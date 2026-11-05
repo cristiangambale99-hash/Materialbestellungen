@@ -384,6 +384,116 @@ function webstarHtml(d) {
 </body></html>`;
 }
 
+/* ------------------------------------------------------------------ *
+ * Mail an die Logistik: Ein von Hand erfasster Artikel wurde dreimal
+ * bestellt und ist damit kein Einzelfall mehr. Die App hat ihn ins
+ * Sortiment aufgenommen, im Aduna fehlt er noch.
+ * ------------------------------------------------------------------ */
+function logistikText(d) {
+  const z = [];
+  z.push("Guten Tag");
+  z.push("");
+  z.push(`der folgende Artikel wurde ${d.anzahl || 3} Mal von Hand mitbestellt und ist damit`);
+  z.push("kein Einzelfall mehr. Die Materialbestellung hat ihn soeben ins Sortiment der");
+  z.push("Unterhaltsreinigung aufgenommen. Im Aduna fehlt er noch.");
+  z.push("");
+  z.push("So wird er im Aduna erfasst");
+  z.push("");
+  z.push(`  Artikelnummer:        ${d.artikelnummer || ""}`);
+  z.push(`  Warengruppe:          ${d.kategorie || ""}${d.kategorie_name ? " " + d.kategorie_name : ""}`);
+  z.push(`  Bezeichnung:          ${d.artikelname || ""}`);
+  z.push(`  Lieferant:            WEBSTAR (E. Weber & Cie AG)`);
+  z.push(`  Externe ArtikelNr.:   ${d.webstar_nr || ""}`);
+  z.push(`  Abteilung:            Unterhaltsreinigung`);
+  z.push("");
+  z.push(`Die Nummer setzt sich aus unserer Warengruppe ${d.kategorie || ""} und der`);
+  z.push(`Artikelnummer ${d.webstar_nr || ""} von Webstar zusammen. Die Warengruppe hat die App`);
+  z.push("aus der Bezeichnung erkannt - bitte kurz gegenprüfen.");
+  if (d.bestellungen) {
+    z.push("");
+    z.push(`Bisher bestellt in:  ${d.bestellungen}`);
+  }
+  z.push("");
+  z.push("Meldet euch, falls Nummer, Bezeichnung oder Warengruppe angepasst werden müssen,");
+  z.push("dann korrigieren wir es in der App.");
+  z.push("");
+  z.push(`Für Rückfragen erreichen Sie uns unter T ${FIRMA.telefon}.`);
+  z.push("");
+  z.push("Freundliche Grüsse");
+  z.push("");
+  z.push(FIRMA.name);
+  z.push(FIRMA.stelle);
+  return z.join("\n");
+}
+
+function logistikHtml(d) {
+  const felder = [
+    ["Artikelnummer", d.artikelnummer],
+    ["Warengruppe", [d.kategorie, d.kategorie_name].filter(Boolean).join(" ")],
+    ["Bezeichnung", d.artikelname],
+    ["Lieferant", "WEBSTAR (E. Weber & Cie AG)"],
+    ["Externe ArtikelNr.", d.webstar_nr],
+    ["Abteilung", "Unterhaltsreinigung"],
+  ].filter(([, w]) => w);
+
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:24px 12px;background:#f3f8f8">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid ${LINIE};border-radius:10px">
+
+  <tr><td style="padding:28px 28px 0">
+    <div style="font:600 11px/1.3 Verdana,Geneva,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:${TUERKIS}">${esc(FIRMA.name)}</div>
+    <h1 style="margin:10px 0 0;font:700 21px/1.3 Verdana,Geneva,sans-serif;color:${PETROL}">Neuer Artikel fürs Aduna</h1>
+    <div style="margin:6px 0 0;font:12px/1.5 Verdana,Geneva,sans-serif;color:${GRAU}">${esc(d.artikelnummer || "")} · ${esc(d.artikelname || "")}</div>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 0;font:13px/1.65 Verdana,Geneva,sans-serif;color:${INK}">
+    <p style="margin:0">Guten Tag</p>
+    <p style="margin:12px 0 0">dieser Artikel wurde <strong>${esc(d.anzahl || 3)} Mal</strong> von Hand
+      mitbestellt und ist damit kein Einzelfall mehr. Die Materialbestellung hat ihn soeben
+      ins Sortiment der Unterhaltsreinigung aufgenommen – im Aduna fehlt er noch.</p>
+  </td></tr>
+
+  <tr><td style="padding:20px 28px 0">
+    <div style="font:600 13px/1.4 Verdana,Geneva,sans-serif;color:${PETROL};margin-bottom:8px">So wird er im Aduna erfasst</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${HELL};border-top:2px solid ${TUERKIS}">
+      ${felder.map(([l, w], i) => `<tr>
+        <td style="padding:${i === 0 ? "11px" : "4px"} 14px 4px;font:600 9px/1.3 Verdana,Geneva,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:${TUERKIS};white-space:nowrap;vertical-align:top;width:40%">${esc(l)}</td>
+        <td style="padding:${i === 0 ? "11px" : "4px"} 14px 4px;font:600 13px/1.4 Verdana,Geneva,sans-serif;color:${INK}">${esc(w)}</td>
+      </tr>`).join("")}
+      <tr><td colspan="2" style="padding:6px 14px 12px"></td></tr>
+    </table>
+  </td></tr>
+
+  <tr><td style="padding:16px 28px 0;font:13px/1.65 Verdana,Geneva,sans-serif;color:${INK}">
+    <p style="margin:0">Die Nummer setzt sich aus unserer Warengruppe <strong>${esc(d.kategorie || "")}</strong>
+      und der Artikelnummer <strong>${esc(d.webstar_nr || "")}</strong> von Webstar zusammen.
+      Die Warengruppe hat die App aus der Bezeichnung erkannt – bitte kurz gegenprüfen.</p>
+  </td></tr>
+
+  ${d.bestellungen ? `<tr><td style="padding:18px 28px 0">
+    <div style="font:600 9px/1.3 Verdana,Geneva,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:${TUERKIS}">Bisher bestellt in</div>
+    <div style="font:13px/1.6 Verdana,Geneva,sans-serif;color:${INK};margin-top:5px">${esc(d.bestellungen)}</div>
+  </td></tr>` : ""}
+
+  <tr><td style="padding:18px 28px 0;font:13px/1.65 Verdana,Geneva,sans-serif;color:${INK}">
+    <p style="margin:0">Meldet euch, falls Nummer, Bezeichnung oder Warengruppe angepasst
+      werden müssen, dann korrigieren wir es in der App.</p>
+    <p style="margin:12px 0 0">Für Rückfragen erreichen Sie uns unter T ${esc(FIRMA.telefon)}.</p>
+    <p style="margin:18px 0 0">Freundliche Grüsse</p>
+    <p style="margin:10px 0 0"><strong>${esc(FIRMA.name)}</strong><br>${esc(FIRMA.stelle)}</p>
+  </td></tr>
+
+  <tr><td style="padding:22px 28px 26px">
+    <div style="border-top:1px solid ${LINIE};padding-top:12px;font:11px/1.6 Verdana,Geneva,sans-serif;color:${GRAU}">
+      ${esc(FIRMA.name)} · ${esc(FIRMA.strasse)} · ${esc(FIRMA.ort)}<br>
+      T ${esc(FIRMA.telefon)} · ${esc(FIRMA.web)}
+    </div>
+  </td></tr>
+</table>
+</body></html>`;
+}
+
 import { erstelleWebstarPdf, heuteLang } from "../lib/webstar-pdf.js";
 
 export default async function handler(req, res) {
@@ -409,6 +519,8 @@ export default async function handler(req, res) {
   };
   // Ist die Ware im Hauptlager bereit, meldet die App das dem Buero.
   const DISPO = process.env.MAIL_DISPO || "unterhalt@clean-service.ch";
+  // Neuer Artikel im Sortiment: Die Logistik erfasst ihn im Aduna.
+  const LOGISTIK = process.env.MAIL_LOGISTIK || "logistik@clean-service.ch";
   // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
   const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
   const KUNDE_ANTWORT_AKTIV = true;
@@ -427,6 +539,7 @@ export default async function handler(req, res) {
     const anKunde   = d.ziel === "kunde";
     const anKanal   = d.ziel === "kanal";
     const anDispo   = d.ziel === "disposition";
+    const anLogistik = d.ziel === "logistik";
     const kanal     = KANAL[String(d.abt || "").toUpperCase()] || null;
 
     let TO;
@@ -440,6 +553,8 @@ export default async function handler(req, res) {
       TO = kanal;
     } else if (anDispo) {
       TO = DISPO;
+    } else if (anLogistik) {
+      TO = LOGISTIK;
     } else {
       TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
     }
@@ -447,7 +562,7 @@ export default async function handler(req, res) {
     const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
     // Die Mail ans Lager geht zusaetzlich in den Kanal der Abteilung.
-    if (!anWebstar && !anKunde && !anKanal && !anDispo && kanal && kanal !== TO) nachricht.cc = [kanal];
+    if (!anWebstar && !anKunde && !anKanal && !anDispo && !anLogistik && kanal && kanal !== TO) nachricht.cc = [kanal];
 
     if (anKanal) {
       const teile = ["Materialbestellung", d.abteilung || "", d.mitarbeiter || "", d.personalnummer || ""];
@@ -459,6 +574,10 @@ export default async function handler(req, res) {
       nachricht.subject = kundeBetreff(d);
       nachricht.text = kundeText(d);
       nachricht.html = kundeHtml(d);
+    } else if (anLogistik) {
+      nachricht.subject = `Neuer Artikel fürs Aduna · ${d.artikelnummer || ""} ${d.artikelname || ""}`.trim();
+      nachricht.text = logistikText(d);
+      nachricht.html = logistikHtml(d);
     } else if (anDispo) {
       const k = (Array.isArray(d.kunden) && d.kunden[0]) || {};
       nachricht.subject = ["Material vorbereitet", d.nummer,
@@ -477,8 +596,8 @@ export default async function handler(req, res) {
       nachricht.text = lagerText(d);
     }
 
-    if (anKunde) {
-      // Der Kunde bekommt kein PDF, alles steht im Mail.
+    if (anKunde || anLogistik) {
+      // Kunde und Logistik bekommen kein PDF, alles steht im Mail.
     } else if (anKanal) {
       if (d.pdf) nachricht.attachments = [{ filename: `Bestellung_${d.nummer}.pdf`, content: d.pdf }];
     } else if (anWebstar) {
@@ -533,7 +652,8 @@ export default async function handler(req, res) {
 
     const daten = await antwort.json();
     console.log("Bestellmail versendet", d.nummer, daten.id,
-                anDispo ? "zur Disposition an " + TO
+                anLogistik ? "an die Logistik " + TO
+                : anDispo ? "zur Disposition an " + TO
                 : anKanal ? "in den Kanal " + TO
                         : anKunde ? "an den Kunden (" + (d.art || "lieferung") + ")"
                         : anWebstar ? "an Webstar" : "ans Lager",
