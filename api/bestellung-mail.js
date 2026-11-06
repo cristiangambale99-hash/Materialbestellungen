@@ -251,61 +251,82 @@ function kundeHtml(d) {
   const wo = [o.name, d.lieferadresse].filter(Boolean).join(", ");
   const pos = (d.positionen || []).filter((p) => !p.titel);
   const besorgung = d.art === "besorgung";
-  const zeilen = pos.map((p) => `
-    <tr>
-      <td style="padding:7px 0;border-bottom:1px solid #f1f5f6;font:400 12.5px/1.6 Verdana,Geneva,sans-serif;color:${INK}">${esc(p.name || "")}</td>
-      <td style="padding:7px 0;border-bottom:1px solid #f1f5f6;font:700 12.5px/1.6 Verdana,Geneva,sans-serif;color:${INK};text-align:right;white-space:nowrap;width:70px">${esc(String(p.menge ?? ""))}</td>
-    </tr>`).join("");
 
-  const kasten = besorgung
-    ? `<div style="border-left:3px solid #e0a64b;background:#fdf6e9;padding:11px 14px;border-radius:0 8px 8px 0;margin:0 0 14px;font:400 12.5px/1.7 Verdana,Geneva,sans-serif;color:#6b5a3c">
-         Diese Artikel beschaffen Sie gemäss Vereinbarung selbst. Wir bestellen sie deshalb nicht und bitten Sie, für Nachschub zu sorgen.
-       </div>`
-    : `<div style="border-left:3px solid #2bb6b7;background:${HELL};padding:11px 14px;border-radius:0 8px 8px 0;margin:0 0 14px;font:400 12.5px/1.7 Verdana,Geneva,sans-serif;color:${INK}">
-         Sie müssen nichts veranlassen. Unsere Mitarbeiterin räumt das Material beim nächsten Einsatz ein.
-       </div>`;
+  const titel = besorgung ? "Material geht zur Neige" : "Ihr Material ist unterwegs";
+  const kennung = [o.name, o.objektnummer ? "Objekt " + o.objektnummer : ""]
+    .filter(Boolean).join(" · ") || wo;
 
   const einleitung = besorgung
-    ? `unsere Mitarbeiterin hat heute für Ihr Objekt <b>${esc(wo)}</b> gemeldet, dass folgendes Verbrauchsmaterial zur Neige geht:`
-    : `für Ihr Objekt <b>${esc(wo)}</b> wurde heute Reinigungsmaterial bestellt. Die Lieferung erfolgt innerhalb der nächsten 48 Stunden direkt zum Objekt.`;
+    ? `unsere Mitarbeiterin hat bei der heutigen Reinigung festgestellt, dass in Ihrem Objekt <b style="color:${INK}">${esc(wo)}</b> folgendes Verbrauchsmaterial zur Neige geht.`
+    : `für Ihr Objekt <b style="color:${INK}">${esc(wo)}</b> wurde heute Reinigungsmaterial bestellt. Die Lieferung erfolgt innerhalb der nächsten 48 Stunden direkt zum Objekt.`;
+
+  // "Handtuch Ultra (20 Stk.)" wird zu Name und Zusatzzeile getrennt,
+  // damit die Liste ruhig bleibt.
+  const teile = (name) => {
+    const m = String(name || "").match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+    return m ? [m[1], m[2]] : [String(name || ""), ""];
+  };
+
+  const zeilen = pos.map((p) => {
+    const [n, zusatz] = teile(p.name);
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td style="padding:16px 0 15px;border-top:1px solid ${LINIE};font:400 15px/1.45 Arial,Helvetica,sans-serif;color:${INK}">${esc(n)}${
+        zusatz ? `<br><span style="font:400 11.5px/1.6 Arial,Helvetica,sans-serif;color:${GRAU};letter-spacing:.04em">${esc(zusatz)}</span>` : ""}</td>
+      <td align="right" style="padding:16px 0 15px;border-top:1px solid ${LINIE};font:300 24px/1.2 Arial,Helvetica,sans-serif;color:${TUERKIS};white-space:nowrap">${esc(String(p.menge ?? ""))}</td>
+    </tr></table>`;
+  }).join("");
+
+  const hinweis = besorgung
+    ? "Diese Artikel beschaffen Sie gemäss Vereinbarung selbst. Wir bestellen sie deshalb nicht und bitten Sie, rechtzeitig für Nachschub zu sorgen."
+    : "Sie müssen nichts veranlassen. Unsere Mitarbeiterin räumt das Material beim nächsten Einsatz ein.";
 
   const nachsatz = besorgung
     ? (d.geliefert
-        ? `<p style="margin:0 0 12px">Das übrige Material haben wir bestellt, es wird innerhalb der nächsten 48 Stunden direkt zum Objekt geliefert.</p>`
+        ? `<p style="margin:16px 0 0;color:${GRAU}">Das übrige Material haben wir bestellt, es wird innerhalb der nächsten 48 Stunden direkt zum Objekt geliefert.</p>`
         : "")
-      + `<p style="margin:0 0 12px">Möchten Sie die Beschaffung künftig uns überlassen? Melden Sie sich unter T ${FIRMA.telefon}, wir passen das für Ihr Objekt an.</p>`
-    : `<p style="margin:0 0 12px">Bei Fragen zur Lieferung erreichen Sie uns unter T ${FIRMA.telefon}.</p>`;
+      + `<p style="margin:16px 0 0;color:${GRAU}">Möchten Sie die Beschaffung künftig uns überlassen? Ein Anruf auf ${esc(FIRMA.telefon)} genügt, wir übernehmen das für Ihr Objekt.</p>`
+    : `<p style="margin:16px 0 0;color:${GRAU}">Bei Fragen zur Lieferung erreichen Sie uns unter T ${esc(FIRMA.telefon)}.</p>`;
 
-  return `<!doctype html><html><body style="margin:0;background:#f7fbfc;padding:22px 0">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7fbfc">
-      <tr><td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0"
-               style="width:600px;max-width:92%;background:#fff;border:1px solid ${LINIE};border-radius:12px">
-          <tr><td style="padding:24px 26px 0">
-            ${d.logo ? `<img src="${d.logo}" alt="${esc(FIRMA.name)}" width="190" style="width:190px;max-width:60%;height:auto;display:block;margin-bottom:18px">` : ""}
-          </td></tr>
-          <tr><td style="padding:0 26px 22px;font:400 13px/1.7 Verdana,Geneva,sans-serif;color:${INK}">
-            <p style="margin:0 0 12px">Guten Tag</p>
-            <p style="margin:0 0 12px">${einleitung}</p>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 14px">
-              <tr>
-                <th align="left" style="padding:6px 0;border-bottom:1px solid ${LINIE};font:600 9.5px/1.4 Arial,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:${GRAU}">Artikel</th>
-                <th align="right" style="padding:6px 0;border-bottom:1px solid ${LINIE};font:600 9.5px/1.4 Arial,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:${GRAU}">${besorgung ? "Bedarf" : "Menge"}</th>
-              </tr>
-              ${zeilen}
-            </table>
-            ${kasten}
-            ${nachsatz}
-            <p style="margin:0 0 4px">Freundliche Grüsse<br>${esc(FIRMA.name)}</p>
-            <p style="margin:16px 0 0;padding-top:13px;border-top:1px solid ${LINIE};font:400 11.5px/1.6 Verdana,Geneva,sans-serif;color:${GRAU}">
-              <b style="color:#60beb3;font-size:12px">${esc(FIRMA.name)}</b><br>
-              ${esc(FIRMA.strasse)}, ${esc(FIRMA.ort)} · T ${esc(FIRMA.telefon)} · ${esc(FIRMA.web)}
-            </p>
-          </td></tr>
-        </table>
-      </td></tr>
-    </table>
-  </body></html>`;
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#ffffff;padding:26px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:96%;background:#ffffff">
+
+  ${d.logo ? `<tr><td style="padding:52px 44px 0">
+    <img src="${d.logo}" alt="${esc(FIRMA.name)}" width="150" style="width:150px;max-width:52%;height:auto;display:block">
+  </td></tr>` : ""}
+
+  <tr><td style="padding:46px 44px 0">
+    <div style="font:400 10px/1.4 Arial,Helvetica,sans-serif;letter-spacing:.26em;text-transform:uppercase;color:${TUERKIS}">${esc(kennung)}</div>
+    <div style="font:300 30px/1.25 Arial,Helvetica,sans-serif;color:${PETROL};margin:18px 0 0">${titel}</div>
+  </td></tr>
+
+  <tr><td style="padding:30px 44px 0;font:400 14px/1.85 Arial,Helvetica,sans-serif;color:${INK}">
+    <p style="margin:0">Guten Tag</p>
+    <p style="margin:15px 0 0;color:${GRAU}">${einleitung}</p>
+  </td></tr>
+
+  <tr><td style="padding:34px 44px 0">
+    ${zeilen}
+    <div style="border-top:1px solid ${LINIE}"></div>
+  </td></tr>
+
+  <tr><td style="padding:30px 44px 0;font:400 13.5px/1.85 Arial,Helvetica,sans-serif;color:${INK}">
+    <p style="margin:0">${hinweis}</p>
+    ${nachsatz}
+  </td></tr>
+
+  <tr><td style="padding:40px 44px 56px">
+    <div style="font:400 13.5px/1.8 Arial,Helvetica,sans-serif;color:${INK}">Freundliche Grüsse<br>${esc(FIRMA.name)}</div>
+    <div style="height:1px;width:40px;background:${TUERKIS};margin:26px 0 16px;font-size:0;line-height:0">&nbsp;</div>
+    <div style="font:400 10.5px/1.85 Arial,Helvetica,sans-serif;color:${GRAU};letter-spacing:.03em">
+      ${esc(FIRMA.strasse)} · ${esc(FIRMA.ort)}<br>T ${esc(FIRMA.telefon)} · ${esc(FIRMA.web)}
+    </div>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 }
 
 function webstarHtml(d) {
@@ -512,9 +533,9 @@ export default async function handler(req, res) {
     lager:   process.env.MAIL_TO      || "cee2eda3.clean-service.ch@emea.teams.ms",
     webstar: process.env.MAIL_WEBSTAR || "info@webstar.ch",
   };
-  // Die Bestellung an Webstar geht in Kopie an die Unterhaltsreinigung,
-  // damit das Buero jede ausgeloeste Bestellung im Posteingang hat.
-  const KOPIE_WEBSTAR = process.env.MAIL_WEBSTAR_CC || "unterhalt@clean-service.ch";
+  // Die Bestellung an Webstar geht in Kopie an die Logistik,
+  // damit sie jede ausgeloeste Bestellung im Posteingang hat.
+  const KOPIE_WEBSTAR = process.env.MAIL_WEBSTAR_CC || "logistik@clean-service.ch";
   // Teams-Kanal je Abteilung: jede Bestellung soll zusaetzlich im Kanal
   // der zustaendigen Abteilung erscheinen.
   const KANAL = {
@@ -528,9 +549,9 @@ export default async function handler(req, res) {
   // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
   const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
   const KUNDE_ANTWORT_AKTIV = true;
-  // Jede Mail an einen Kunden geht in Kopie an die Unterhaltsreinigung,
-  // damit das Buero sieht, was beim Kunden angekommen ist.
-  const KOPIE_KUNDE = process.env.MAIL_KUNDE_CC || "unterhalt@clean-service.ch";
+  // Jede Mail an einen Kunden geht in Kopie an die Logistik,
+  // damit sie sieht, was beim Kunden angekommen ist.
+  const KOPIE_KUNDE = process.env.MAIL_KUNDE_CC || "logistik@clean-service.ch";
 
   if (!KEY) {
     return res.status(500).json({ fehler: "RESEND_API_KEY fehlt" });
