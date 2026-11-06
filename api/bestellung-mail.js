@@ -524,6 +524,9 @@ export default async function handler(req, res) {
   // Antworten des Kunden sollen bei der Unterhaltsreinigung landen.
   const KUNDE_ANTWORT = process.env.MAIL_KUNDE_ANTWORT || "unterhalt@clean-service.ch";
   const KUNDE_ANTWORT_AKTIV = true;
+  // Jede Mail an einen Kunden geht in Kopie an die Unterhaltsreinigung,
+  // damit das Buero sieht, was beim Kunden angekommen ist.
+  const KOPIE_KUNDE = process.env.MAIL_KUNDE_CC || "unterhalt@clean-service.ch";
 
   if (!KEY) {
     return res.status(500).json({ fehler: "RESEND_API_KEY fehlt" });
@@ -561,6 +564,7 @@ export default async function handler(req, res) {
 
     const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
+    if (anKunde && KOPIE_KUNDE && KOPIE_KUNDE !== TO) nachricht.cc = [KOPIE_KUNDE];
     // Die Mail ans Lager geht zusaetzlich in den Kanal der Abteilung.
     if (!anWebstar && !anKunde && !anKanal && !anDispo && !anLogistik && kanal && kanal !== TO) nachricht.cc = [kanal];
 
