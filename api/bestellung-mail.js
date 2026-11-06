@@ -134,7 +134,11 @@ function lagerText(d) {
   if (Array.isArray(d.kunden) && d.kunden.length) {
     d.kunden.forEach((k) => {
       zeilen.push("", `${k.name || "Kunde"}${k.objektnummer ? " · " + k.objektnummer : ""}`);
-      zeilen.push(...pos(k.positionen));
+      // Bei einem einzigen Objekt haengen die Positionen an der Bestellung,
+      // nicht am Kundenblock - sonst bliebe die Liste im Kanal leer.
+      const roh = (k.positionen && k.positionen.length) ? k.positionen
+                : (d.kunden.length === 1 ? (d.positionen || []) : []);
+      zeilen.push(...pos(roh));
     });
   } else if (Array.isArray(d.positionen) && d.positionen.length) {
     zeilen.push(...pos(d.positionen));
