@@ -104,6 +104,16 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
   font-weight:bold;cursor:pointer;text-align:left}
 .leiselink:hover{text-decoration:underline}
 .fehlerzeile{color:#A4342B}
+.loeschx{width:38px;height:38px;border-radius:9px;border:1px solid #E8BFB9;background:#fff;
+  color:#A4342B;font-size:16px;font-weight:bold;line-height:1;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.loeschx:hover{background:#A4342B;color:#fff;border-color:#A4342B}
+.loeschfrage{background:#FBEFED;border:1px solid #E8BFB9;border-radius:9px;padding:13px 15px;margin-top:11px}
+.loeschfrage>b{color:#A4342B;display:block;font-size:13.5px}
+.loeschfrage .klein{color:#7a4a43;margin:5px 0 0}
+.btn.rot{background:#A4342B;color:#fff}
+.btn.grau{background:#fff;color:var(--ink);border:1px solid var(--linie)}
+.verblasst{opacity:.4;pointer-events:none}
 .verlauf{border-top:1px dashed var(--linie);margin-top:10px;padding-top:9px}
 .verlauf ul{margin:6px 0 6px;padding-left:0;list-style:none}
 .verlauf li{padding:3px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -423,6 +433,7 @@ const DB = {
   manuellPruefen: (code, nr, name) =>
     rpc("artikel_manuell_pruefen_v4", { code, p_nr: nr, p_name: name }),
   manuellListe: (code) => rpc("artikel_manuell_liste_v2", { code }),
+  bestellungLoeschen: (code, id) => rpc("bestellung_loeschen", { code, best_id: id }),
   pruefungSetzen: (id, pnr, pruefung) =>
     rpc("bestellung_pruefung_setzen_v2", { best_id: id, personalnummer: pnr, pruefung }),
   autoFreigeben: (id, pnr) =>
@@ -706,7 +717,7 @@ const S = {
   kunden: [],          // [{objektnummer, kundenname, adresse, positionen:[], freitext:[]}]
   anleitung: false, anlAbt: "UH",
   adminRolle: "lager", lagerTab: "bestellungen", lagerAbt: "UH", adminNurHl: false,
-  adminManuell: {}, adminManuellFehler: {}, manuell: [],
+  adminManuell: {}, adminManuellFehler: {}, manuell: [], adminLoeschen: null,
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
   inventarForm: false, inventar: [], invTab: "inventar", invAbt: "", invSuche: "", invNurWenig: false,
@@ -2299,6 +2310,29 @@ function fotoWand(b) {
     <figcaption>${esc(f.name || "")}</figcaption></figure>`).join("")}</div>`;
 }
 
+// Loeschen ist endgueltig, darum fragt die Karte zuerst nach und nennt
+// dabei Nummer, Kunde, Anzahl Artikel und Wert zur Kontrolle.
+function loeschFrage(b) {
+  if (S.adminLoeschen !== b.id) return "";
+  const laedt = S.adminLaden === b.id;
+  const wert = (b.positionen || []).reduce(
+    (n, p) => n + (UH_REFERENZ.preis[p.code] || 0) * (Number(p.menge) || 0), 0);
+  const ziel = b.kunden.length ? b.kunden.map(k => k.kundenname).join(", ")
+             : (b.fahrzeug || b.lieferadresse || "—");
+  return `<div class="loeschfrage">
+    <b>Sind Sie sicher, dass Sie diese Bestellung komplett löschen möchten?</b>
+    <p class="klein">${esc(b.nummer)} · ${esc(ziel)} · ${b.positionen.length} ${t("artikel")}${
+      wert ? " · CHF " + wert.toFixed(2) : ""}</p>
+    <p class="klein">Die Bestellung verschwindet samt Positionen aus der Liste, aus der
+      Auswertung und aus der Verrechnung. Das lässt sich nicht rückgängig machen.</p>
+    <div class="reihe" style="margin-top:11px">
+      <button class="btn rot" data-aweg-ja="${b.id}" ${laedt ? "disabled" : ""}>${
+        laedt ? "Löscht…" : "Ja, komplett löschen"}</button>
+      <button class="btn grau" data-aweg-nein="${b.id}" ${laedt ? "disabled" : ""}>Abbrechen</button>
+    </div>
+  </div>`;
+}
+
 function adminKarte(b) {
   const ziel = b.fahrzeug || (b.kunden.length ? b.kunden.map(k=>k.kundenname).join(", ") : b.lieferadresse || "—");
   const bk = b.beekeeper_status
@@ -2310,12 +2344,15 @@ function adminKarte(b) {
         <p class="klein">${esc(b.mitarbeiter)} · ${b.positionen.length} ${t("artikel")}</p>
         ${bk}</div>
       <div class="reihe">
+        <button class="loeschx" data-aloeschen="${b.id}" title="Bestellung löschen"
+          aria-label="Bestellung löschen">&#10005;</button>
         <select data-status="${b.id}">${statusOptionen(b).map(st=>
           `<option value="${st}"${b.status===st?" selected":""}>${t(STATUS_LABEL[st])}</option>`).join("")}</select>
         <button class="btn sek" data-pdf="${b.id}">PDF</button>
       </div>
     </div>
-    ${adminAktion(b)}
+    ${loeschFrage(b)}
+    <div${S.adminLoeschen === b.id ? ' class="verblasst"' : ""}>${adminAktion(b)}</div>
     ${fotoWand(b)}
     <details><summary>${b.positionen.length} ${t("artikel")}</summary>
       <table>${b.positionen.map(p=>`<tr><td class="code">${esc(nrZeig(p.code) || "—")}</td><td>${esc(artAnzeige(p))}</td><td class="re">× ${p.menge}</td></tr>`).join("")}</table>
@@ -3194,6 +3231,33 @@ function bindAdmin() {
       else b.positionen.push({ code: code, name: name, menge: menge,
                                freitext: false, block_id: (b.kunden[0]||{}).block_id || null });
       positionenSichern(b);
+    };
+  });
+  document.querySelectorAll("[data-aloeschen]").forEach(knopf => {
+    knopf.onclick = () => {
+      S.adminLoeschen = Number(knopf.dataset.aloeschen);
+      S.fehler = "";
+      render();
+    };
+  });
+  document.querySelectorAll("[data-aweg-nein]").forEach(knopf => {
+    knopf.onclick = () => { S.adminLoeschen = null; render(); };
+  });
+  document.querySelectorAll("[data-aweg-ja]").forEach(knopf => {
+    knopf.onclick = async () => {
+      const id = Number(knopf.dataset.awegJa);
+      S.adminLaden = id; S.fehler = ""; render();
+      try {
+        const a = await DB.bestellungLoeschen(S.adminCode, id);
+        const r = (Array.isArray(a) ? a[0] : a) || {};
+        if (!r.ok) throw new Error(r.grund || "Löschen nicht möglich");
+        S.adminDaten = (S.adminDaten || []).filter(x => x.id !== id);
+        S.adminLoeschen = null;
+        try { S.manuell = await DB.manuellListe(S.adminCode); } catch {}
+      } catch (e) {
+        S.fehler = "Nicht gelöscht: " + e.message;
+      }
+      S.adminLaden = null; render();
     };
   });
   document.querySelectorAll("[data-amanu]").forEach(knopf => {
