@@ -77,7 +77,7 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
 .abtkarte b{display:block;font-size:14.5px;margin-bottom:3px}
 .abtkarte .was{display:block;font-size:13px}
 .abtkarte .wohin{display:block;font-size:12px;color:var(--grau);margin-top:2px}
-.abtkarte .aktiv{position:absolute;top:10px;right:12px;font-size:10px;font-weight:700;
+.abtkarte .aktiv{display:block;font-size:10px;font-weight:700;margin:0 0 4px;
   letter-spacing:.05em;text-transform:uppercase;color:#1B8384}
 .tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--linie);border-radius:9px;padding:4px}
 .pruefbox{background:#FDF6E9;border:1px solid #F0DFC0;border-radius:9px;padding:12px 14px;margin-top:10px}
@@ -456,9 +456,10 @@ const T = {
     zugreifen: "Zugreifen", adminFehler: "Zugangscode falsch.",
     abmelden: "Abmelden", neu: "Neue Bestellung", meine: "Meine Bestellungen",
     abteilungWaehlen: "Abteilung wählen",
-    abtFrage: "Für welche Abteilung bestellst du?", abtErklaerung: "Du arbeitest in beiden. Die Wahl bestimmt das Sortiment und wohin geliefert wird.",
+    abtFrage: "Für welche Abteilung bestellst du?", abtErklaerung: "Die Wahl bestimmt das Sortiment und wohin geliefert wird.",
     abtUhWas: "Material für ein Objekt", abtUhWohin: "Lieferung direkt zum Objekt",
-    abtPfsWas: "Material für deine Privatkunden", abtPfsWohin: "Abholung im Magazin oder Lieferung zu dir nach Hause", abtAktiv: "Aktive Auswahl", angemeldetAls: "Angemeldet als",
+    abtPfsWas: "Material für deine Privatkunden", abtPfsWohin: "Abholung im Magazin oder Lieferung zu dir nach Hause",
+    abtSpezWas: "Material für einen Einsatz", abtSpezWohin: "Abholung im Magazin, Zuteilung über das Fahrzeug", abtAktiv: "Aktive Auswahl", angemeldetAls: "Angemeldet als",
     schrittKunde: "Kunde / Objekt", schrittKundeMaterial: "Kunde & Material",
     schrittFahrzeug: "Fahrzeug", schrittMaterial: "Material",
     schrittLieferung: "Lieferung", schrittUnterschrift: "Unterschrift",
@@ -513,9 +514,10 @@ const T = {
     zugreifen: "Acceder", adminFehler: "Código incorrecto.",
     abmelden: "Cerrar sesión", neu: "Nuevo pedido", meine: "Mis pedidos",
     abteilungWaehlen: "Seleccionar departamento",
-    abtFrage: "¿Para qué departamento haces el pedido?", abtErklaerung: "Trabajas en ambos. La elección define el surtido y el lugar de entrega.",
+    abtFrage: "¿Para qué departamento haces el pedido?", abtErklaerung: "La elección define el surtido y el lugar de entrega.",
     abtUhWas: "Material para un objeto", abtUhWohin: "Entrega directa en el objeto",
-    abtPfsWas: "Material para tus clientes particulares", abtPfsWohin: "Recogida en el almacén o entrega en tu domicilio", abtAktiv: "Selección activa", angemeldetAls: "Sesión iniciada como",
+    abtPfsWas: "Material para tus clientes particulares", abtPfsWohin: "Recogida en el almacén o entrega en tu domicilio",
+    abtSpezWas: "Material para una intervención", abtSpezWohin: "Recogida en el almacén, asignación por vehículo", abtAktiv: "Selección activa", angemeldetAls: "Sesión iniciada como",
     schrittKunde: "Cliente / objeto", schrittKundeMaterial: "Cliente y material",
     schrittFahrzeug: "Vehículo", schrittMaterial: "Material",
     schrittLieferung: "Entrega", schrittUnterschrift: "Firma",
@@ -570,9 +572,10 @@ const T = {
     zugreifen: "Aceder", adminFehler: "Código incorreto.",
     abmelden: "Sair", neu: "Novo pedido", meine: "Os meus pedidos",
     abteilungWaehlen: "Selecionar departamento",
-    abtFrage: "Para que departamento estás a encomendar?", abtErklaerung: "Trabalhas nos dois. A escolha define o sortido e o local de entrega.",
+    abtFrage: "Para que departamento estás a encomendar?", abtErklaerung: "A escolha define o sortido e o local de entrega.",
     abtUhWas: "Material para um objeto", abtUhWohin: "Entrega direta no objeto",
-    abtPfsWas: "Material para os teus clientes particulares", abtPfsWohin: "Levantamento no armazém ou entrega em tua casa", abtAktiv: "Seleção ativa", angemeldetAls: "Sessão iniciada como",
+    abtPfsWas: "Material para os teus clientes particulares", abtPfsWohin: "Levantamento no armazém ou entrega em tua casa",
+    abtSpezWas: "Material para uma intervenção", abtSpezWohin: "Levantamento no armazém, atribuição pelo veículo", abtAktiv: "Seleção ativa", angemeldetAls: "Sessão iniciada como",
     schrittKunde: "Cliente / objeto", schrittKundeMaterial: "Cliente e material",
     schrittFahrzeug: "Veículo", schrittMaterial: "Material",
     schrittLieferung: "Entrega", schrittUnterschrift: "Assinatura",
@@ -627,9 +630,10 @@ const T = {
     zugreifen: "Accedi", adminFehler: "Codice errato.",
     abmelden: "Disconnetti", neu: "Nuovo ordine", meine: "I miei ordini",
     abteilungWaehlen: "Seleziona reparto",
-    abtFrage: "Per quale reparto stai ordinando?", abtErklaerung: "Lavori in entrambi. La scelta determina l'assortimento e il luogo di consegna.",
+    abtFrage: "Per quale reparto stai ordinando?", abtErklaerung: "La scelta determina l'assortimento e il luogo di consegna.",
     abtUhWas: "Materiale per un oggetto", abtUhWohin: "Consegna diretta all'oggetto",
-    abtPfsWas: "Materiale per i tuoi clienti privati", abtPfsWohin: "Ritiro in magazzino o consegna a casa tua", abtAktiv: "Selezione attiva", angemeldetAls: "Accesso effettuato come",
+    abtPfsWas: "Materiale per i tuoi clienti privati", abtPfsWohin: "Ritiro in magazzino o consegna a casa tua",
+    abtSpezWas: "Materiale per un intervento", abtSpezWohin: "Ritiro in magazzino, assegnazione tramite il veicolo", abtAktiv: "Selezione attiva", angemeldetAls: "Accesso effettuato come",
     schrittKunde: "Cliente / oggetto", schrittKundeMaterial: "Cliente e materiale",
     schrittFahrzeug: "Veicolo", schrittMaterial: "Materiale",
     schrittLieferung: "Consegna", schrittUnterschrift: "Firma",
@@ -1174,16 +1178,16 @@ function mitarbeiterView() {
 function abteilungsWahlView() {
   const karte = (a) => {
     const an = a === S.abteilung;
-    const was   = a === "UH" ? t("abtUhWas")   : t("abtPfsWas");
-    const wohin = a === "UH" ? t("abtUhWohin") : t("abtPfsWohin");
+    const was   = a === "UH" ? t("abtUhWas")   : a === "SPEZ" ? t("abtSpezWas")   : t("abtPfsWas");
+    const wohin = a === "UH" ? t("abtUhWohin") : a === "SPEZ" ? t("abtSpezWohin") : t("abtPfsWohin");
     return `<button class="abtkarte ${an ? "an" : ""}" data-abt="${a}" aria-pressed="${an}">
       <span class="haken" aria-hidden="true">${an ? "✓" : ""}</span>
       <span class="abtinhalt">
         <b>${abtName(a)}</b>
+        ${an ? `<span class="aktiv">${t("abtAktiv")}</span>` : ""}
         <span class="was">${was}</span>
         <span class="wohin">${wohin}</span>
       </span>
-      ${an ? `<span class="aktiv">${t("abtAktiv")}</span>` : ""}
     </button>`;
   };
   return `<div class="abtwahl">
@@ -1685,7 +1689,7 @@ function invAdminView() {
   const stueck = (S.inventar || []).reduce((n, a) => n + a.bestand, 0);
   return `<div class="kopfzeile"><div><h1>Hauptlager</h1>
       <p class="klein">${S.invTab === "bestellen"
-        ? "Material auf ein Objekt bestellen"
+        ? "Material für eine Abteilung bestellen"
         : "Inventar über alle Abteilungen"}</p></div>
       ${S.invTab === "bestellen" ? "" : `<button class="btn sek" id="refresh">Aktualisieren</button>`}</div>
     <div class="kacheln">
@@ -1705,7 +1709,7 @@ function invAdminView() {
 // Das Hauptlager bestellt wie eine Mitarbeiterin auf ein Objekt. Dahinter
 // steckt derselbe Ablauf, nur bleibt die Anmeldung als Lager bestehen.
 const LAGER_USER = { personalnummer: "1", vorname: "", nachname: "Hauptlager",
-                     abteilungen: ["UH", "PFS"], sprache: "de" };
+                     abteilungen: ["UH", "PFS", "SPEZ"], sprache: "de" };
 
 function lagerBestellView() {
   if (S.gesendet) return erfolgView();
