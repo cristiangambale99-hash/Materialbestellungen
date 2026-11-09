@@ -720,7 +720,7 @@ const S = {
   adminManuell: {}, adminManuellFehler: {}, manuell: [], adminLoeschen: null,
   aus: { von: "", bis: "", suche: "", status: "", kat: "" }, ausListe: [], ausAbt: "UH",
   rechnungen: [], rechnung: null, buchTab: "pruefen", buchFehler: "", buchLaden: false,
-  inventarForm: false, inventar: [], invTab: "inventar", invAbt: "", invSuche: "", invNurWenig: false,
+  inventarForm: false, inventar: [], invTab: "inventar", lagerBestellt: false, invAbt: "", invSuche: "", invNurWenig: false,
   uhTab: "bestellungen", uhOffen: null, uhObjekt: null, uhSuche: "",
   uhObjekte: [], uhVerrechnung: [], uhVerrErledigt: false,
   aktKunde: null,      // laufender Block (PFS)
@@ -878,7 +878,8 @@ function render() {
 function kopf() {
   const rechts = S.admin
     ? (S.adminRolle === "inventar"
-      ? `<div class="ident"><b>Hauptlager</b><span>Inventar</span></div>`
+      ? `<div class="ident"><b>Hauptlager</b><span>${
+          S.invTab === "bestellen" ? "Bestellen" : "Inventar"}</span></div>`
       : `<div class="ident"><b>${t("adminTitelDash")}</b><span>${t("adminHinweis")}</span></div>`)
     : `<div class="ident"><b>${esc(S.user.vorname || "")} ${esc(S.user.nachname)}</b><span>${t("pnr")} ${esc(S.user.personalnummer)}</span></div>`;
   return `<header><div class="wrap kopf">
@@ -1683,18 +1684,33 @@ function invAdminView() {
   const wenig = (S.inventar || []).filter(invWenig).length;
   const stueck = (S.inventar || []).reduce((n, a) => n + a.bestand, 0);
   return `<div class="kopfzeile"><div><h1>Hauptlager</h1>
-      <p class="klein">Inventar über alle Abteilungen</p></div>
-      <button class="btn sek" id="refresh">Aktualisieren</button></div>
+      <p class="klein">${S.invTab === "bestellen"
+        ? "Material auf ein Objekt bestellen"
+        : "Inventar über alle Abteilungen"}</p></div>
+      ${S.invTab === "bestellen" ? "" : `<button class="btn sek" id="refresh">Aktualisieren</button>`}</div>
     <div class="kacheln">
       <div class="kachel"><b>${(S.inventar || []).length}</b><span>Artikel</span></div>
       <div class="kachel"><b>${stueck}</b><span>Stück am Lager</span></div>
       <div class="kachel"><b>${wenig}</b><span>nachbestellen</span></div>
     </div>
     <div class="tabs">
-      <button class="${S.invTab !== "nach" ? "an" : ""}" data-invtab="inventar">Inventar</button>
+      <button class="${S.invTab === "inventar" ? "an" : ""}" data-invtab="inventar">Inventar</button>
       <button class="${S.invTab === "nach" ? "an" : ""}" data-invtab="nach">Nachbestellen</button>
+      <button class="${S.invTab === "bestellen" ? "an" : ""}" data-invtab="bestellen">Bestellen</button>
     </div>
-    ${S.invTab === "nach" ? invNachView() : invListeView(liste)}`;
+    ${S.invTab === "bestellen" ? lagerBestellView()
+      : S.invTab === "nach" ? invNachView() : invListeView(liste)}`;
+}
+
+// Das Hauptlager bestellt wie eine Mitarbeiterin auf ein Objekt. Dahinter
+// steckt derselbe Ablauf, nur bleibt die Anmeldung als Lager bestehen.
+const LAGER_USER = { personalnummer: "1", vorname: "", nachname: "Hauptlager",
+                     abteilungen: ["UH", "PFS"], sprache: "de" };
+
+function lagerBestellView() {
+  if (S.gesendet) return erfolgView();
+  if (!S.user || S.laden) return `<div class="karte"><p class="klein">${t("laedt")}</p></div>`;
+  return `${S.schritt === 0 ? abteilungsWahlView() : ""}${wizardView()}`;
 }
 
 function invListeView(liste) {
@@ -1748,6 +1764,12 @@ function invNachView() {
 }
 
 function bindInventar() {
+  if (S.invTab === "bestellen") {
+    document.querySelectorAll("[data-invtab]").forEach(b =>
+      b.onclick = () => { S.invTab = b.dataset.invtab; render(); });
+    bindMitarbeiter();
+    return;
+  }
   if (el("refresh")) el("refresh").onclick = async () => {
     try {
       const z = await DB.lagerZugang(S.adminCode);
@@ -1757,7 +1779,20 @@ function bindInventar() {
     render();
   };
   document.querySelectorAll("[data-invtab]").forEach(b =>
-    b.onclick = () => { S.invTab = b.dataset.invtab; render(); });
+    b.onclick = async () => {
+      const neuTab = b.dataset.invtab;
+      if (neuTab === "bestellen") {
+        if (!S.user) {
+          S.user = LAGER_USER;
+          S.abteilung = startAbteilung(S.user);
+          reset();
+          S.invTab = neuTab; render();
+          await ladeStamm(); render();
+          return;
+        }
+      }
+      S.invTab = neuTab; render();
+    });
   document.querySelectorAll("[data-invabt]").forEach(b =>
     b.onclick = () => { S.invAbt = b.dataset.invabt; render(); });
   if (el("invWenig")) el("invWenig").onchange = (e) => { S.invNurWenig = e.target.checked; render(); };
