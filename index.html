@@ -108,6 +108,7 @@ label{display:block;font-size:12px;font-weight:bold;color:var(--grau);margin:12p
   color:#A4342B;font-size:16px;font-weight:bold;line-height:1;cursor:pointer;font-family:inherit;
   display:flex;align-items:center;justify-content:center;flex:none}
 .loeschx:hover{background:#A4342B;color:#fff;border-color:#A4342B}
+.bedarf{margin:4px 0 2px;font-size:14px;font-weight:700;color:#0F6F70}
 .loeschfrage{background:#FBEFED;border:1px solid #E8BFB9;border-radius:9px;padding:13px 15px;margin-top:11px}
 .loeschfrage>b{color:#A4342B;display:block;font-size:13.5px}
 .loeschfrage .klein{color:#7a4a43;margin:5px 0 0}
@@ -494,6 +495,8 @@ const T = {
     lieferungTitel: "Lieferung", lieferungAn: "Lieferung an",
     zusammenfassung: "Zusammenfassung & Unterschrift", abteilung: "Abteilung",
     anzahlPositionen: "Anzahl Positionen", lieferung: "Lieferung",
+    bedarfFrage: "Wann brauchst du das Material?",
+    bedarfHinweis: "Das Hauptlager stellt es bis zu diesem Tag bereit.",
     unterschrift: "Unterschrift", unterschreiben: "Hier unterschreiben", loeschen: "Löschen",
     absenden: "Bestellung absenden", sendet: "Wird gesendet…",
     erfolgTitel: "Bestellung übermittelt", bestellnummer: "Bestellnummer", status: "Status",
@@ -552,6 +555,8 @@ const T = {
     lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumen y firma", abteilung: "Departamento",
     anzahlPositionen: "Número de posiciones", lieferung: "Entrega",
+    bedarfFrage: "¿Para cuándo necesitas el material?",
+    bedarfHinweis: "El almacén central lo prepara para ese día.",
     unterschrift: "Firma", unterschreiben: "Firma aquí", loeschen: "Borrar",
     absenden: "Enviar pedido", sendet: "Enviando…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número de pedido", status: "Estado",
@@ -610,6 +615,8 @@ const T = {
     lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumo e assinatura", abteilung: "Departamento",
     anzahlPositionen: "Número de posições", lieferung: "Entrega",
+    bedarfFrage: "Para quando precisas do material?",
+    bedarfHinweis: "O armazém central prepara-o até esse dia.",
     unterschrift: "Assinatura", unterschreiben: "Assina aqui", loeschen: "Apagar",
     absenden: "Enviar pedido", sendet: "A enviar…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número do pedido", status: "Estado",
@@ -668,6 +675,8 @@ const T = {
     lieferungTitel: "Consegna", lieferungAn: "Consegna a",
     zusammenfassung: "Riepilogo e firma", abteilung: "Reparto",
     anzahlPositionen: "Numero di posizioni", lieferung: "Consegna",
+    bedarfFrage: "Per quando ti serve il materiale?",
+    bedarfHinweis: "Il magazzino centrale lo prepara entro quel giorno.",
     unterschrift: "Firma", unterschreiben: "Firma qui", loeschen: "Cancella",
     absenden: "Invia ordine", sendet: "Invio in corso…",
     erfolgTitel: "Ordine inviato", bestellnummer: "Numero ordine", status: "Stato",
@@ -723,6 +732,7 @@ const S = {
   schritt: 0,
   pendingUser: null,
   artikel: [],
+  bedarf: "",
   fahrzeuge: [],
   // Formular
   fahrzeug: "",
@@ -769,6 +779,29 @@ const datumKurz = (d) => {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(d);
 };
 const heute = () => new Date().toISOString().slice(0,10);
+// Termin, bis wann das Hauptlager vorbereitet haben muss. Im Adminbereich
+// ausgeschrieben, in der Liste kurz und ab morgen farblich hervorgehoben.
+const TAGE_LANG = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August",
+  "September","Oktober","November","Dezember"];
+const datumTeile = (d) => {
+  const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? { j: +m[1], m: +m[2], t: +m[3], iso: `${m[1]}-${m[2]}-${m[3]}` } : null;
+};
+const datumLang = (d) => {
+  const x = datumTeile(d);
+  if (!x) return "";
+  return `${TAGE_LANG[new Date(x.j, x.m - 1, x.t).getDay()]}, ${x.t}. ${MONATE[x.m - 1]} ${x.j}`;
+};
+const datumTag = (d) => {
+  const x = datumTeile(d);
+  if (!x) return "";
+  return `${TAGE_LANG[new Date(x.j, x.m - 1, x.t).getDay()].slice(0,2)} ${x.t}.${x.m}.`;
+};
+const bedarfNah = (d) => {
+  const x = datumTeile(d);
+  return !!x && (new Date(x.iso) - new Date(heute())) / 86400000 <= 1;
+};
 
 const t = (k) => T[S.lang][k] || T.de[k] || k;
 const abtName = (c) => (ABTEILUNG_NAME[c] || {})[S.lang] || c;
@@ -863,9 +896,13 @@ const freitextErlaubt = () => S.abteilung !== "PFS";
 const pfsLieferung = () => S.abteilung === "PFS" && !istSpringer();
 const lieferAdresseText = () => [S.lieferStrasse.trim(),
   [S.lieferPlz.trim(), S.lieferOrt.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-const lieferBereit = () => !pfsLieferung() || S.lieferWahl !== "hause"
-  || !!(S.lieferStrasse.trim() && S.lieferPlz.trim() && S.lieferOrt.trim());
+const lieferBereit = () => (!vorbereitung() || !!S.bedarf)
+  && (!pfsLieferung() || S.lieferWahl !== "hause"
+      || !!(S.lieferStrasse.trim() && S.lieferPlz.trim() && S.lieferOrt.trim()));
 const nutztFahrzeug = () => S.abteilung === "SPEZ" || istSpringer();
+// Einzelne Personen bestellen nicht bei Webstar, sondern lassen im Hauptlager
+// vorbereiten. Sie geben dafuer an, auf wann sie das Material brauchen.
+const vorbereitung = () => uhFreigabe() && !!(S.user && S.user.ueber_hauptlager);
 const mehrereKunden = () => S.abteilung === "PFS" && !istSpringer();
 const lieferart = () => nutztFahrzeug() ? "magazin_abholung"
   : (pfsLieferung() ? (S.lieferWahl === "hause" ? "mitarbeiter_adresse" : "magazin_abholung")
@@ -875,6 +912,7 @@ function reset() {
   S.schritt = 0; S.fahrzeug = ""; S.kunden = []; S.aktKunde = null;
   S.positionen = []; S.signatur = null; S.gesendet = null; S.fehler = ""; S.mailFehler = false;
   S.lieferWahl = "abholung"; S.lieferStrasse = ""; S.lieferPlz = ""; S.lieferOrt = "";
+  S.bedarf = "";
 }
 
 // ---------------------------------------------------------------------------
@@ -1383,6 +1421,10 @@ function unterschriftView() {
           <input id="liefOrt" value="${esc(S.lieferOrt)}" autocomplete="address-level2" placeholder="${t("liefOrtPh")}"></div>
       </div>`
       : `<div class="info"><p class="klein">${t("liefAbholungOrt")}</p></div>`}` : ""}
+    ${vorbereitung() ? `
+    <label>${t("bedarfFrage")}</label>
+    <input type="date" id="bedarf" value="${esc(S.bedarf || "")}" min="${heute()}">
+    <p class="klein">${t("bedarfHinweis")}</p>` : ""}
     <label>${t("unterschrift")}</label>
     <div class="sigbox"><canvas id="sig" width="600" height="180"></canvas>
       ${!S.signatur?`<span class="sighint">${t("unterschreiben")}</span>`:""}</div>
@@ -2387,7 +2429,8 @@ function adminKarte(b) {
   return `<div class="karte">
     <div class="zeile">
       <div><span class="code">${esc(b.nummer)}</span> <span class="tag">${esc(b.abteilung)}</span>
-        <b>${esc(ziel)}</b>${b.hauptlager?`<span class="kenn info">Hauptlager</span>`:""}
+        <b>${esc(ziel)}</b>${b.hauptlager?`<span class="kenn info">Hauptlager</span>`:""}${
+          b.bedarfsdatum?`<span class="kenn ${bedarfNah(b.bedarfsdatum)?"warn":"info"}">bis ${datumTag(b.bedarfsdatum)}</span>`:""}
         <p class="klein">${esc(b.mitarbeiter)} · ${b.positionen.length} ${t("artikel")}</p>
         ${bk}</div>
       <div class="reihe">
@@ -2469,6 +2512,7 @@ function adminAktion(b) {
   if (b.hauptlager) {
     const fertig = b.status === "bereit" || b.status === "erledigt";
     return `<div class="info"><span class="klein fett">Lieferung durch das Hauptlager</span>
+      ${b.bedarfsdatum ? `<p class="bedarf">Benötigt am ${datumLang(b.bedarfsdatum)}</p>` : ""}
       <p class="klein">${fertig
         ? "Vorbereitet · die Unterhaltsreinigung ist zum Disponieren informiert."
         : "Diese Bestellung wird im Hauptlager zusammengestellt und geht nicht an Webstar."}</p>
@@ -2829,6 +2873,12 @@ function bindLieferung() {
         if (b) b.disabled = !(S.signatur && !S.laden && lieferBereit());
       };
     });
+  const bd = el("bedarf");
+  if (bd) bd.onchange = () => {
+    S.bedarf = bd.value;
+    const b = el("senden");
+    if (b) b.disabled = !(S.signatur && !S.laden && lieferBereit());
+  };
 }
 
 function bindSignatur() {
@@ -2866,6 +2916,7 @@ async function senden() {
     lieferart: lieferart(),
     fahrzeug_nr: nutztFahrzeug() ? S.fahrzeug : null,
     signatur: S.signatur,
+    bedarfsdatum: vorbereitung() ? S.bedarf : null,
     lieferadresse: null,
   };
   if (pfsLieferung()) {
@@ -2910,7 +2961,11 @@ async function senden() {
     // die Mail an Webstar loest dort die Freigabe aus.
     // Laeuft das Objekt ueber das Hauptlager, geht die Bestellung wie eine
     // Lagerbestellung an den Lagerist und nicht an Webstar.
-    const ausLager = uhFreigabe() && !!(S.kunden[0] || {}).hauptlager;
+    // Zwei Wege fuehren ins Hauptlager: das Objekt laeuft grundsaetzlich
+    // darueber, oder die bestellende Person ist so hinterlegt (Vorbereitung
+    // im Magazin statt Bestellung bei Webstar).
+    const ausLager = uhFreigabe()
+      && (!!(S.kunden[0] || {}).hauptlager || !!S.user.ueber_hauptlager);
     S.gesendet.hauptlager = ausLager;
     S.mailFehler = (uhFreigabe() && !ausLager) ? false : !(await mailVersand(S.gesendet, doc));
     if (ausLager) {
@@ -3137,6 +3192,7 @@ async function mailVersand(best, doc, ziel, extra) {
     lieferung:      [LIEFERART_TEXT[best.daten?.lieferart || lieferart()]?.de,
                      best.daten?.lieferadresse].filter(Boolean).join(" · ") || null,
     bestelldatum:   new Date().toISOString().slice(0,10),
+    bedarfsdatum:   best.daten?.bedarfsdatum || null,
     ziel:           ziel || "lager",
     lieferadresse:  best.daten?.lieferadresse || null,
     kunden:         kunden.length ? kunden : null,

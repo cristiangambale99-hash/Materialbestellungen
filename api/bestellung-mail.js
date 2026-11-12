@@ -110,6 +110,7 @@ function webstarVermerk(d) {
     fehler:     "An Webstar gesendet: NEIN – der Versand ist fehlgeschlagen. "
               + "Bitte im Adminbereich auslösen.",
     hauptlager: "An Webstar gesendet: NEIN – die Lieferung läuft über unser Hauptlager.",
+    vorbereitung: "An Webstar gesendet: NEIN – das Hauptlager stellt die Bestellung bereit.",
     nurselbst:  "An Webstar gesendet: NEIN – alle Artikel besorgt der Kunde selbst.",
   };
   const zeile = texte[d.webstar];
@@ -126,6 +127,7 @@ function lagerText(d) {
   if (d.fahrzeug) zeilen.push(`Fahrzeug: ${d.fahrzeug}`);
   if (d.lieferung) zeilen.push(`Lieferung: ${d.lieferung}`);
   if (datum(d.bestelldatum)) zeilen.push(`Bestellt am: ${datum(d.bestelldatum)}`);
+  if (datum(d.bedarfsdatum)) zeilen.push(`Benötigt am: ${datum(d.bedarfsdatum)}`);
 
   const pos = (liste) => (liste || []).map(
     (p) => `  ${String(p.menge ?? "").padStart(4)} ×  ${p.code ? p.code + "  " : ""}${p.name || ""}`);
