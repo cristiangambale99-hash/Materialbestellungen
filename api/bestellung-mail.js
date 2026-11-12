@@ -523,6 +523,30 @@ function logistikHtml(d) {
 
 import { erstelleWebstarPdf, heuteLang } from "../lib/webstar-pdf.js";
 
+// Sicherheitsnetz: Einzelne Personen lassen im Hauptlager vorbereiten, ihre
+// Bestellungen duerfen Webstar nie erreichen. Die App haelt das schon zurueck,
+// doch ein veraltet zwischengespeicherter Browser koennte die alte Regel
+// kennen. Darum wird hier noch einmal nachgefragt, bevor etwas rausgeht.
+const DB_URL = process.env.SUPABASE_URL || "https://yjnkaeplhxcsubwqpqkz.supabase.co";
+const DB_KEY = process.env.SUPABASE_KEY || "sb_publishable_xm6JyL6wcaQ2A0ZacM4JMg_U_dNCOME";
+
+async function laesstVorbereiten(personalnummer) {
+  const pnr = String(personalnummer || "").trim();
+  if (!pnr) return false;
+  try {
+    const r = await fetch(
+      `${DB_URL}/rest/v1/mitarbeiter_login?personalnummer=eq.${encodeURIComponent(pnr)}`
+        + "&select=ueber_hauptlager",
+      { headers: { apikey: DB_KEY, Authorization: `Bearer ${DB_KEY}` } });
+    if (!r.ok) return false;
+    const z = await r.json();
+    return !!(Array.isArray(z) && z[0] && z[0].ueber_hauptlager);
+  } catch (e) {
+    console.warn("Vorbereitungspruefung nicht moeglich:", e && e.message);
+    return false;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ fehler: "Nur POST" });
@@ -566,6 +590,14 @@ export default async function handler(req, res) {
     }
 
     const anWebstar = d.ziel === "webstar";
+    if (anWebstar && await laesstVorbereiten(d.personalnummer)) {
+      console.warn(`Bestellung ${d.nummer}: Versand an Webstar gestoppt, `
+        + `Personalnummer ${d.personalnummer} bestellt zur Vorbereitung im Hauptlager.`);
+      return res.status(409).json({
+        fehler: "Diese Bestellung wird im Hauptlager vorbereitet und geht nicht an Webstar",
+        vorbereitung: true,
+      });
+    }
     const anKunde   = d.ziel === "kunde";
     const anKanal   = d.ziel === "kanal";
     const anDispo   = d.ziel === "disposition";
