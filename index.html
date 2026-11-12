@@ -496,7 +496,8 @@ const T = {
     zusammenfassung: "Zusammenfassung & Unterschrift", abteilung: "Abteilung",
     anzahlPositionen: "Anzahl Positionen", lieferung: "Lieferung",
     bedarfFrage: "Wann brauchst du das Material?",
-    bedarfHinweis: "Das Hauptlager stellt es bis zu diesem Tag bereit.",
+    bedarfHinweis: "Das Hauptlager braucht drei Tage Vorbereitungszeit.",
+    bedarfFruehestens: "Frühester Termin:",
     unterschrift: "Unterschrift", unterschreiben: "Hier unterschreiben", loeschen: "Löschen",
     absenden: "Bestellung absenden", sendet: "Wird gesendet…",
     erfolgTitel: "Bestellung übermittelt", bestellnummer: "Bestellnummer", status: "Status",
@@ -556,7 +557,8 @@ const T = {
     zusammenfassung: "Resumen y firma", abteilung: "Departamento",
     anzahlPositionen: "Número de posiciones", lieferung: "Entrega",
     bedarfFrage: "¿Para cuándo necesitas el material?",
-    bedarfHinweis: "El almacén central lo prepara para ese día.",
+    bedarfHinweis: "El almacén central necesita tres días de preparación.",
+    bedarfFruehestens: "Fecha más próxima:",
     unterschrift: "Firma", unterschreiben: "Firma aquí", loeschen: "Borrar",
     absenden: "Enviar pedido", sendet: "Enviando…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número de pedido", status: "Estado",
@@ -616,7 +618,8 @@ const T = {
     zusammenfassung: "Resumo e assinatura", abteilung: "Departamento",
     anzahlPositionen: "Número de posições", lieferung: "Entrega",
     bedarfFrage: "Para quando precisas do material?",
-    bedarfHinweis: "O armazém central prepara-o até esse dia.",
+    bedarfHinweis: "O armazém central precisa de três dias de preparação.",
+    bedarfFruehestens: "Data mais próxima:",
     unterschrift: "Assinatura", unterschreiben: "Assina aqui", loeschen: "Apagar",
     absenden: "Enviar pedido", sendet: "A enviar…",
     erfolgTitel: "Pedido enviado", bestellnummer: "Número do pedido", status: "Estado",
@@ -676,7 +679,8 @@ const T = {
     zusammenfassung: "Riepilogo e firma", abteilung: "Reparto",
     anzahlPositionen: "Numero di posizioni", lieferung: "Consegna",
     bedarfFrage: "Per quando ti serve il materiale?",
-    bedarfHinweis: "Il magazzino centrale lo prepara entro quel giorno.",
+    bedarfHinweis: "Il magazzino centrale ha bisogno di tre giorni di preparazione.",
+    bedarfFruehestens: "Data più vicina:",
     unterschrift: "Firma", unterschreiben: "Firma qui", loeschen: "Cancella",
     absenden: "Invia ordine", sendet: "Invio in corso…",
     erfolgTitel: "Ordine inviato", bestellnummer: "Numero ordine", status: "Stato",
@@ -779,6 +783,18 @@ const datumKurz = (d) => {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : String(d);
 };
 const heute = () => new Date().toISOString().slice(0,10);
+// Das Hauptlager braucht drei Tage, um eine Bestellung zu ruesten. Faellt der
+// Tag auf ein Wochenende, ist der folgende Montag der fruehste Termin.
+const isoTag = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`
+  + `-${String(d.getDate()).padStart(2,"0")}`;
+const VORLAUF_TAGE = 3;
+const bedarfFrueh = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + VORLAUF_TAGE);
+  if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return isoTag(d);
+};
 // Termin, bis wann das Hauptlager vorbereitet haben muss. Im Adminbereich
 // ausgeschrieben, in der Liste kurz und ab morgen farblich hervorgehoben.
 const TAGE_LANG = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
@@ -896,7 +912,7 @@ const freitextErlaubt = () => S.abteilung !== "PFS";
 const pfsLieferung = () => S.abteilung === "PFS" && !istSpringer();
 const lieferAdresseText = () => [S.lieferStrasse.trim(),
   [S.lieferPlz.trim(), S.lieferOrt.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-const lieferBereit = () => (!vorbereitung() || !!S.bedarf)
+const lieferBereit = () => (!vorbereitung() || (!!S.bedarf && S.bedarf >= bedarfFrueh()))
   && (!pfsLieferung() || S.lieferWahl !== "hause"
       || !!(S.lieferStrasse.trim() && S.lieferPlz.trim() && S.lieferOrt.trim()));
 const nutztFahrzeug = () => S.abteilung === "SPEZ" || istSpringer();
@@ -1423,8 +1439,8 @@ function unterschriftView() {
       : `<div class="info"><p class="klein">${t("liefAbholungOrt")}</p></div>`}` : ""}
     ${vorbereitung() ? `
     <label>${t("bedarfFrage")}</label>
-    <input type="date" id="bedarf" value="${esc(S.bedarf || "")}" min="${heute()}">
-    <p class="klein">${t("bedarfHinweis")}</p>` : ""}
+    <input type="date" id="bedarf" value="${esc(S.bedarf || "")}" min="${bedarfFrueh()}">
+    <p class="klein">${t("bedarfHinweis")} ${t("bedarfFruehestens")} ${datumKurz(bedarfFrueh())}.</p>` : ""}
     <label>${t("unterschrift")}</label>
     <div class="sigbox"><canvas id="sig" width="600" height="180"></canvas>
       ${!S.signatur?`<span class="sighint">${t("unterschreiben")}</span>`:""}</div>
