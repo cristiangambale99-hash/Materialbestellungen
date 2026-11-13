@@ -3479,9 +3479,10 @@ function bindAdmin() {
     const id = +b.dataset.springerbereit;
     S.adminLaden = id; S.fehler = ""; render();
     try {
-      // Keine Dispositionsmail: die Person holt selber ab und erfaehrt es
-      // ueber Beekeeper, sobald der Status auf bereit steht.
-      await DB.statusSetzen(S.adminCode, id, "bereit");
+      // Keine Dispositionsmail: die Person holt selber ab. Der Status geht
+      // direkt auf erledigt, weil die Arbeit des Lagers damit getan ist und
+      // genau dieser Wechsel die Beekeeper-Meldung an die Person ausloest.
+      await DB.statusSetzen(S.adminCode, id, "erledigt");
       S.adminDaten = await DB.adminListe(S.adminCode);
     } catch (e) { S.fehler = e.message; }
     S.adminLaden = null; render();
