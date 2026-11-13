@@ -111,6 +111,8 @@ function webstarVermerk(d) {
               + "Bitte im Adminbereich auslösen.",
     hauptlager: "An Webstar gesendet: NEIN – die Lieferung läuft über unser Hauptlager.",
     vorbereitung: "An Webstar gesendet: NEIN – das Hauptlager stellt die Bestellung bereit.",
+    springer: "An Webstar gesendet: NEIN – das Material wird im Hauptlager "
+      + "gerüstet und im Magazin zur Abholung bereitgestellt.",
     nurselbst:  "An Webstar gesendet: NEIN – alle Artikel besorgt der Kunde selbst.",
   };
   const zeile = texte[d.webstar];

@@ -459,6 +459,7 @@ const T = {
     pnrFehler: "Personalnummer nicht gefunden.",
     bestaetigenFrage: "Du meldest dich an als", jaIchBin: "Ja, das bin ich", abbrechen: "Abbrechen",
     hinweisHauptlager: "Das Material wird in unserem Hauptlager zusammengestellt und anschliessend zum Objekt geliefert.",
+    hinweisSpringer: "Dein Material wird im Hauptlager zusammengestellt. Sobald es bereit ist, erhältst du eine Meldung in Beekeeper und kannst es im Magazin abholen.",
     fotoNeu: "Foto hinzufügen", fotoAendern: "Foto ändern", fotoTitel: "Foto zum Artikel",
     adminLink: "Admin-Zugang", zurueckLogin: "Zurück zur Anmeldung",
     adminTitel: "Admin-Zugang", adminCode: "Zugangscode", adminCodePh: "Zugangscode eingeben",
@@ -520,6 +521,7 @@ const T = {
     pnrFehler: "Número de personal no encontrado.",
     bestaetigenFrage: "Vas a iniciar sesión como", jaIchBin: "Sí, soy yo", abbrechen: "Cancelar",
     hinweisHauptlager: "El material se prepara en nuestro almacén central y se entrega después al objeto.",
+    hinweisSpringer: "Tu material se prepara en el almacén central. En cuanto esté listo, recibirás un aviso en Beekeeper y podrás recogerlo en el almacén.",
     fotoNeu: "Añadir foto", fotoAendern: "Cambiar foto", fotoTitel: "Foto del artículo",
     adminLink: "Acceso admin", zurueckLogin: "Volver al inicio de sesión",
     adminTitel: "Acceso admin", adminCode: "Código de acceso", adminCodePh: "Introduce el código",
@@ -581,6 +583,7 @@ const T = {
     pnrFehler: "Número de funcionário não encontrado.",
     bestaetigenFrage: "Vais iniciar sessão como", jaIchBin: "Sim, sou eu", abbrechen: "Cancelar",
     hinweisHauptlager: "O material é preparado no nosso armazém central e depois entregue ao objeto.",
+    hinweisSpringer: "O teu material é preparado no armazém central. Assim que estiver pronto, recebes um aviso no Beekeeper e podes levantá-lo no armazém.",
     fotoNeu: "Adicionar foto", fotoAendern: "Alterar foto", fotoTitel: "Foto do artigo",
     adminLink: "Acesso admin", zurueckLogin: "Voltar ao início de sessão",
     adminTitel: "Acesso admin", adminCode: "Código de acesso", adminCodePh: "Introduz o código",
@@ -642,6 +645,7 @@ const T = {
     pnrFehler: "Numero di personale non trovato.",
     bestaetigenFrage: "Stai accedendo come", jaIchBin: "Sì, sono io", abbrechen: "Annulla",
     hinweisHauptlager: "Il materiale viene preparato nel nostro magazzino centrale e poi consegnato all'oggetto.",
+    hinweisSpringer: "Il tuo materiale viene preparato nel magazzino centrale. Appena è pronto ricevi un avviso in Beekeeper e puoi ritirarlo in magazzino.",
     fotoNeu: "Aggiungi foto", fotoAendern: "Cambia foto", fotoTitel: "Foto dell'articolo",
     adminLink: "Accesso admin", zurueckLogin: "Torna all'accesso",
     adminTitel: "Accesso admin", adminCode: "Codice di accesso", adminCodePh: "Inserisci il codice",
@@ -916,6 +920,10 @@ const lieferBereit = () => (!vorbereitung() || (!!S.bedarf && S.bedarf >= bedarf
   && (!pfsLieferung() || S.lieferWahl !== "hause"
       || !!(S.lieferStrasse.trim() && S.lieferPlz.trim() && S.lieferOrt.trim()));
 const nutztFahrzeug = () => S.abteilung === "SPEZ" || istSpringer();
+// Im Adminbereich ist eine Springerbestellung daran zu erkennen, dass sie
+// ueber das Hauptlager laeuft, ein Fahrzeug traegt und keinen Kunden hat.
+const springerBest = (b) => !!b.hauptlager && !!b.fahrzeug
+  && b.abteilung !== "SPEZ" && !(b.kunden || []).length;
 // Einzelne Personen bestellen nicht bei Webstar, sondern lassen im Hauptlager
 // vorbereiten. Sie geben dafuer an, auf wann sie das Material brauchen.
 const vorbereitung = () => uhFreigabe() && !!(S.user && S.user.ueber_hauptlager);
@@ -1455,6 +1463,7 @@ function erfolgView() {
     <p class="klein">${t("erfolgInfo")}</p>
     ${pfsLieferung() ? `<div class="info"><p class="klein">${
       S.lieferWahl === "hause" ? t("hinweisLieferung") : t("hinweisAbholung")}</p></div>` : ""}
+    ${istSpringer() ? `<div class="info"><p class="klein">${t("hinweisSpringer")}</p></div>` : ""}
     ${uhFreigabe() ? `<div class="info"><p class="klein">${
       S.gesendet && S.gesendet.hauptlager ? t("hinweisHauptlager")
       : S.gesendet && S.gesendet.pruefung && S.gesendet.pruefung.auffaellig ? t("hinweisPruefung")
@@ -2527,6 +2536,17 @@ function adminAktion(b) {
   // der Unterhaltsreinigung, dass disponiert werden kann.
   if (b.hauptlager) {
     const fertig = b.status === "bereit" || b.status === "erledigt";
+    // Springerbestellungen laufen ueber ein Fahrzeug und ohne Kunde. Sie werden
+    // nicht disponiert, sondern im Magazin abgeholt; die Person erfaehrt es
+    // ueber Beekeeper, sobald der Lagerist sie bereit meldet.
+    if (springerBest(b)) {
+      return `<div class="info"><span class="klein fett">Abholung im Magazin</span>
+        <p class="klein">${fertig
+          ? "Bereitgestellt · die Person ist über Beekeeper informiert."
+          : "Material für das Springerteam rüsten und auf der Rampe bereitstellen. "
+            + "Geht nicht an Webstar."}</p>
+        ${fertig ? "" : knopf("springerbereit", "Bereitgestellt – Person informieren")}</div>`;
+    }
     return `<div class="info"><span class="klein fett">Lieferung durch das Hauptlager</span>
       ${b.bedarfsdatum ? `<p class="bedarf">Benötigt am ${datumLang(b.bedarfsdatum)}</p>` : ""}
       <p class="klein">${fertig
@@ -2980,14 +3000,17 @@ async function senden() {
     // Zwei Wege fuehren ins Hauptlager: das Objekt laeuft grundsaetzlich
     // darueber, oder die bestellende Person ist so hinterlegt (Vorbereitung
     // im Magazin statt Bestellung bei Webstar).
-    const ausLager = uhFreigabe()
-      && (!!(S.kunden[0] || {}).hauptlager || !!S.user.ueber_hauptlager);
+    // Das Springerteam holt sein Material im Magazin ab: jede ihrer
+    // Bestellungen wird im Hauptlager geruestet, nie bei Webstar bestellt.
+    const ausLager = istSpringer() || (uhFreigabe()
+      && (!!(S.kunden[0] || {}).hauptlager || !!S.user.ueber_hauptlager));
     S.gesendet.hauptlager = ausLager;
     S.mailFehler = (uhFreigabe() && !ausLager) ? false : !(await mailVersand(S.gesendet, doc));
     if (ausLager) {
       try { await DB.bestHauptlager(S.gesendet.id, S.user.personalnummer, true); }
       catch (e) { console.warn(e); }
-      try { await mailVersand(S.gesendet, doc, "kanal", { webstar: "hauptlager" }); }
+      try { await mailVersand(S.gesendet, doc, "kanal",
+              { webstar: istSpringer() ? "springer" : "hauptlager" }); }
       catch (e) { console.warn(e); }
     } else if (uhFreigabe()) {
       // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal.
@@ -3447,6 +3470,17 @@ function bindAdmin() {
         { mitarbeiter: best.mitarbeiter, personalnummer: best.personalnummer || "",
           lieferadresse: best.lieferadresse || null });
       if (!ok) throw new Error(t("mailFehler"));
+      await DB.statusSetzen(S.adminCode, id, "bereit");
+      S.adminDaten = await DB.adminListe(S.adminCode);
+    } catch (e) { S.fehler = e.message; }
+    S.adminLaden = null; render();
+  });
+  document.querySelectorAll("[data-springerbereit]").forEach(b => b.onclick = async () => {
+    const id = +b.dataset.springerbereit;
+    S.adminLaden = id; S.fehler = ""; render();
+    try {
+      // Keine Dispositionsmail: die Person holt selber ab und erfaehrt es
+      // ueber Beekeeper, sobald der Status auf bereit steht.
       await DB.statusSetzen(S.adminCode, id, "bereit");
       S.adminDaten = await DB.adminListe(S.adminCode);
     } catch (e) { S.fehler = e.message; }
