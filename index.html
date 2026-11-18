@@ -506,6 +506,10 @@ const T = {
     lieferungTitel: "Lieferung", lieferungAn: "Lieferung an",
     zusammenfassung: "Zusammenfassung & Unterschrift", abteilung: "Abteilung",
     anzahlPositionen: "Anzahl Positionen", lieferung: "Lieferung",
+    wegFrage: "Wohin geht diese Bestellung?",
+    wegObjekt: "Auf ein Objekt", wegFahrzeug: "Aufs Fahrzeug",
+    wegObjektWas: "Material für einen Kunden", wegObjektWohin: "Lieferung direkt aufs Objekt",
+    wegFahrzeugWas: "Material für dein Fahrzeug", wegFahrzeugWohin: "Abholung im Magazin, das Hauptlager rüstet",
     bedarfFrage: "Wann brauchst du das Material?",
     bedarfHinweis: "Das Hauptlager braucht drei Tage Vorbereitungszeit.",
     bedarfFruehestens: "Frühester Termin:",
@@ -568,6 +572,10 @@ const T = {
     lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumen y firma", abteilung: "Departamento",
     anzahlPositionen: "Número de posiciones", lieferung: "Entrega",
+    wegFrage: "¿Adónde va este pedido?",
+    wegObjekt: "A un objeto", wegFahrzeug: "Al vehículo",
+    wegObjektWas: "Material para un cliente", wegObjektWohin: "Entrega directa al objeto",
+    wegFahrzeugWas: "Material para tu vehículo", wegFahrzeugWohin: "Recogida en el almacén, lo prepara el almacén central",
     bedarfFrage: "¿Para cuándo necesitas el material?",
     bedarfHinweis: "El almacén central necesita tres días de preparación.",
     bedarfFruehestens: "Fecha más próxima:",
@@ -630,6 +638,10 @@ const T = {
     lieferungTitel: "Entrega", lieferungAn: "Entrega a",
     zusammenfassung: "Resumo e assinatura", abteilung: "Departamento",
     anzahlPositionen: "Número de posições", lieferung: "Entrega",
+    wegFrage: "Para onde vai esta encomenda?",
+    wegObjekt: "Para um objeto", wegFahrzeug: "Para o veículo",
+    wegObjektWas: "Material para um cliente", wegObjektWohin: "Entrega directa no objeto",
+    wegFahrzeugWas: "Material para o teu veículo", wegFahrzeugWohin: "Levantamento no armazém, preparado pelo armazém central",
     bedarfFrage: "Para quando precisas do material?",
     bedarfHinweis: "O armazém central precisa de três dias de preparação.",
     bedarfFruehestens: "Data mais próxima:",
@@ -692,6 +704,10 @@ const T = {
     lieferungTitel: "Consegna", lieferungAn: "Consegna a",
     zusammenfassung: "Riepilogo e firma", abteilung: "Reparto",
     anzahlPositionen: "Numero di posizioni", lieferung: "Consegna",
+    wegFrage: "Dove va questo ordine?",
+    wegObjekt: "Su un oggetto", wegFahrzeug: "Sul veicolo",
+    wegObjektWas: "Materiale per un cliente", wegObjektWohin: "Consegna diretta all'oggetto",
+    wegFahrzeugWas: "Materiale per il tuo veicolo", wegFahrzeugWohin: "Ritiro in magazzino, prepara il magazzino centrale",
     bedarfFrage: "Per quando ti serve il materiale?",
     bedarfHinweis: "Il magazzino centrale ha bisogno di tre giorni di preparazione.",
     bedarfFruehestens: "Data più vicina:",
@@ -787,7 +803,7 @@ const STATUS_LABEL = { offen:"offen", in_bearbeitung:"inBearbeitung",
   freigegeben:"freigegeben", bereit:"bereit", erledigt:"erledigt" };
 // Die Unterhaltsreinigung laeuft neu ueber die Kontrolle im Adminbereich.
 // Springer bestellen weiter ueber ein Fahrzeug und bleiben davon unberuehrt.
-const uhFreigabe = () => S.abteilung === "UH" && !istSpringer();
+const uhFreigabe = () => S.abteilung === "UH" && !springerModus();
 const statusOptionen = (b) => ["offen","in_bearbeitung"]
   .concat(b.status === "freigegeben" || b.status === "bereit" ? [b.status] : [])
   .concat(["erledigt"]);
@@ -910,6 +926,11 @@ function bild(code, gross) {
 // Springer bestellen wie die Spezialreinigung über ein Fahrzeug,
 // nutzen aber das Material ihrer eigenen Abteilung (UH/PFS).
 const istSpringer = () => S.user?.abteilung_raw === "Springer";
+// Einzelne Personen duerfen beides: Material aufs Fahrzeug bestellen wie das
+// Springerteam und direkt auf ein Objekt. Sie entscheiden pro Bestellung,
+// und daran haengt der ganze weitere Weg.
+const beideWege = () => !!(S.user && S.user.fahrzeug_und_objekt);
+const springerModus = () => istSpringer() && (!beideWege() || S.weg === "fahrzeug");
 
 // Startansicht nach der tatsaechlichen Abteilung der Person, nicht nach der
 // Reihenfolge im Array: Wer im Putzfrauenservice arbeitet, landet im
@@ -929,13 +950,13 @@ function startAbteilung(u) {
 const NUR_SPRINGER = ['100-8010'];
 const MAGAZIN_ADRESSE = "Clean Service Scaramuzzo AG, Industriestrasse 5, 8307 Effretikon";
 const freitextErlaubt = () => S.abteilung !== "PFS";
-const pfsLieferung = () => S.abteilung === "PFS" && !istSpringer();
+const pfsLieferung = () => S.abteilung === "PFS" && !springerModus();
 const lieferAdresseText = () => [S.lieferStrasse.trim(),
   [S.lieferPlz.trim(), S.lieferOrt.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 const lieferBereit = () => (!vorbereitung() || (!!S.bedarf && S.bedarf >= bedarfFrueh()))
   && (!pfsLieferung() || S.lieferWahl !== "hause"
       || !!(S.lieferStrasse.trim() && S.lieferPlz.trim() && S.lieferOrt.trim()));
-const nutztFahrzeug = () => S.abteilung === "SPEZ" || istSpringer();
+const nutztFahrzeug = () => S.abteilung === "SPEZ" || springerModus();
 // Im Adminbereich ist eine Springerbestellung daran zu erkennen, dass sie
 // ueber das Hauptlager laeuft, ein Fahrzeug traegt und keinen Kunden hat.
 const springerBest = (b) => !!b.hauptlager && !!b.fahrzeug
@@ -950,6 +971,7 @@ const lieferart = () => nutztFahrzeug() ? "magazin_abholung"
 
 function reset() {
   S.schritt = 0; S.fahrzeug = ""; S.kunden = []; S.aktKunde = null;
+  S.weg = beideWege() ? (S.weg || "objekt") : "objekt";
   S.positionen = []; S.signatur = null; S.gesendet = null; S.fehler = ""; S.mailFehler = false;
   S.lieferWahl = "abholung"; S.lieferStrasse = ""; S.lieferPlz = ""; S.lieferOrt = "";
   S.bedarf = "";
@@ -1289,11 +1311,33 @@ function mitarbeiterView() {
       </div>
     </div>
     ${S.tab==="neu" && mehrfach ? abteilungsWahlView() : ""}
+    ${S.tab==="neu" && beideWege() && S.schritt===0 ? wegWahlView() : ""}
     ${S.tab==="neu" ? wizardView() : meineView()}`;
 }
 
 // Zwei grosse Karten statt zwei schmaler Knoepfe: Die Mitarbeiterin sieht,
 // was sie waehlt und was danach anders ist.
+// Dieselben zwei grossen Karten wie bei der Abteilungswahl: die Person sieht,
+// wohin das Material geht, bevor sie den Weg waehlt.
+function wegWahlView() {
+  const karte = (w) => {
+    const an = w === S.weg;
+    return `<button class="abtkarte ${an ? "an" : ""}" data-weg="${w}" aria-pressed="${an}">
+      <span class="haken" aria-hidden="true">${an ? "✓" : ""}</span>
+      <span class="abtinhalt">
+        <b>${w === "objekt" ? t("wegObjekt") : t("wegFahrzeug")}</b>
+        ${an ? `<span class="aktiv">${t("abtAktiv")}</span>` : ""}
+        <span class="was">${w === "objekt" ? t("wegObjektWas") : t("wegFahrzeugWas")}</span>
+        <span class="wohin">${w === "objekt" ? t("wegObjektWohin") : t("wegFahrzeugWohin")}</span>
+      </span>
+    </button>`;
+  };
+  return `<div class="abtwahl">
+    <p class="abtfrage">${t("wegFrage")}</p>
+    <div class="abtkarten">${["objekt","fahrzeug"].map(karte).join("")}</div>
+  </div>`;
+}
+
 function abteilungsWahlView() {
   const karte = (a) => {
     const an = a === S.abteilung;
@@ -1512,7 +1556,7 @@ function erfolgView() {
     <p class="klein">${t("erfolgInfo")}</p>
     ${pfsLieferung() ? `<div class="info"><p class="klein">${
       S.lieferWahl === "hause" ? t("hinweisLieferung") : t("hinweisAbholung")}</p></div>` : ""}
-    ${istSpringer() ? `<div class="info"><p class="klein">${t("hinweisSpringer")}</p></div>` : ""}
+    ${springerModus() ? `<div class="info"><p class="klein">${t("hinweisSpringer")}</p></div>` : ""}
     ${uhFreigabe() ? `<div class="info"><p class="klein">${
       S.gesendet && S.gesendet.hauptlager ? t("hinweisHauptlager")
       : S.gesendet && S.gesendet.pruefung && S.gesendet.pruefung.auffaellig ? t("hinweisPruefung")
@@ -2773,6 +2817,13 @@ function bindMitarbeiter() {
   document.querySelectorAll("[data-abt]").forEach(b => b.onclick = async () => {
     S.abteilung = b.dataset.abt; reset(); await ladeStamm(); render();
   });
+  // Der Weg bestimmt Sortiment, Lieferung und Freigabe, darum von vorne.
+  document.querySelectorAll("[data-weg]").forEach(b => b.onclick = async () => {
+    const weg = b.dataset.weg;
+    reset(); S.weg = weg;
+    if (weg === "fahrzeug" && !S.fahrzeuge.length) S.fahrzeuge = await DB.fahrzeuge();
+    render();
+  });
 
   if (S.gesendet) {
     el("neueBest").onclick = () => { reset(); render(); };
@@ -3051,7 +3102,7 @@ async function senden() {
     // im Magazin statt Bestellung bei Webstar).
     // Das Springerteam holt sein Material im Magazin ab: jede ihrer
     // Bestellungen wird im Hauptlager geruestet, nie bei Webstar bestellt.
-    const ausLager = istSpringer() || (uhFreigabe()
+    const ausLager = springerModus() || (uhFreigabe()
       && (!!(S.kunden[0] || {}).hauptlager || !!S.user.ueber_hauptlager));
     S.gesendet.hauptlager = ausLager;
     S.mailFehler = (uhFreigabe() && !ausLager) ? false : !(await mailVersand(S.gesendet, doc));
@@ -3059,7 +3110,7 @@ async function senden() {
       try { await DB.bestHauptlager(S.gesendet.id, S.user.personalnummer, true); }
       catch (e) { console.warn(e); }
       try { await mailVersand(S.gesendet, doc, "kanal",
-              { webstar: istSpringer() ? "springer" : "hauptlager" }); }
+              { webstar: springerModus() ? "springer" : "hauptlager" }); }
       catch (e) { console.warn(e); }
     } else if (uhFreigabe()) {
       // Die Unterhaltsreinigung sieht jede Bestellung in ihrem Teams-Kanal.
