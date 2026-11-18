@@ -396,12 +396,12 @@ const DB = {
     tabelle(`artikel?abteilung=eq.${abteilung}&aktiv=is.true&select=code,kategorie,name_de,name_es,name_pt,name_it,selbst_waehlbar&order=kategorie,name_de`),
   objekteSuche: (abteilung, q) =>
     tabelle(`kunden_objekte?abteilungen=cs.{${abteilung}}&aktiv=is.true&or=(kundenname.ilike.*${encodeURIComponent(q)}*,objektnummer.ilike.${encodeURIComponent(q)}*)&select=objektnummer,kundenname,adresse,hauptlager&limit=60`),
-  // Der Fuhrpark wird in der Flotten-App gepflegt, nicht hier. Vor dem
-  // Anzeigen gleicht die Datenbank die Liste dort ab; neue Fahrzeuge kommen
-  // dazu, abgemeldete verschwinden. Ist die Flotten-App nicht erreichbar,
+  // Der Fuhrpark wird in der Fahrzeug-App gepflegt, nicht hier. Vor dem
+  // Anzeigen gleicht die Datenbank die Liste dort ab; neu erfasste Fahrzeuge
+  // kommen dazu, abgemeldete verschwinden. Klappt der Abgleich nicht,
   // bleibt die zuletzt bekannte Liste stehen.
   fahrzeuge: async () => {
-    try { await rpc("fahrzeuge_abgleich"); }
+    try { await rpc("fahrzeuge_abgleich_v2"); }
     catch (e) { console.warn("Fahrzeugabgleich nicht moeglich:", e.message); }
     return tabelle(`fahrzeuge?aktiv=is.true&select=*&order=nr`);
   },
