@@ -2648,16 +2648,29 @@ function adminAktion(b) {
       ${fertig ? "" : knopf("vorbereitet", "Vorbereitet – Unterhaltsreinigung informieren")}</div>`;
   }
 
-  if (b.abteilung === "UH" && !b.fahrzeug && b.pruefung && b.pruefung.auffaellig
-      && b.webstar_status !== "gesendet") {
+  // Jede Objektbestellung der Unterhaltsreinigung laesst sich vor der Freigabe
+  // anpassen, nicht nur eine auffaellige: Mengen aendern, Positionen entfernen,
+  // Artikel ergaenzen. Auffaellige sind zusaetzlich farblich hervorgehoben und
+  // nennen den Grund.
+  if (b.abteilung === "UH" && !b.fahrzeug) {
+    if (b.webstar_status === "gesendet")
+      return `<div class="info"><span class="klein fett">${t("freigabe")}</span>
+        <p class="klein">${t("webstarGesendet")}${b.freigegeben_am?" · "+datumKurz(b.freigegeben_am):""}</p></div>`;
+
     const pr = uhPruefung((b.kunden[0]||{}).objektnummer, b.positionen);
-    return `<div class="pruefbox">
-      <b>Überdurchschnittlich – manuell freigeben</b>
-      <p class="klein">${pr.verlauf
-        ? "Verglichen mit dem Verlauf dieses Objekts aus den letzten zwölf Monaten."
-        : "Für dieses Objekt liegt kein Verlauf vor, verglichen wird mit dem Schnitt aller Objekte."}</p>
-      <ul class="gruende">${(pr.auffaellig ? pr.gruende : [{text:"Mengen angepasst, jetzt im Rahmen."}])
-        .map(g=>`<li>${esc(g.name ? g.name + ": " + g.text : g.text)}</li>`).join("")}</ul>
+    const gemeldet = !!(b.pruefung && b.pruefung.auffaellig);
+    const warnen = gemeldet || !!(pr && pr.auffaellig);
+    return `<div class="${warnen ? "pruefbox" : "info"}">
+      <b${warnen ? "" : ' class="klein"'}>${warnen
+        ? "Überdurchschnittlich – manuell freigeben" : t("freigabe")}</b>
+      <p class="klein">${warnen
+        ? (pr.verlauf
+            ? "Verglichen mit dem Verlauf dieses Objekts aus den letzten zwölf Monaten."
+            : "Für dieses Objekt liegt kein Verlauf vor, verglichen wird mit dem Schnitt aller Objekte.")
+        : t("freigabeHinweis")}</p>
+      ${warnen ? `<ul class="gruende">${(pr.auffaellig ? pr.gruende
+          : [{text:"Mengen angepasst, jetzt im Rahmen."}])
+        .map(g=>`<li>${esc(g.name ? g.name + ": " + g.text : g.text)}</li>`).join("")}</ul>` : ""}
       <table class="uhpos">${b.positionen.map((p,i)=>`<tr${p.freitext?' class="notiz"':""}>
         <td class="code">${esc(nrZeig(p.code) || "—")}</td>
         <td>${esc(p.anzeige || p.name)}
@@ -2671,15 +2684,7 @@ function adminAktion(b) {
       ${ergaenzenZeile(b)}
       <p class="klein">Bestellwert CHF ${pr.wert.toFixed(2)}${
         pr.monat_fr ? " · Monatsschnitt des Objekts CHF " + pr.monat_fr.toFixed(2) : ""}</p>
-      ${knopf("frei", "Bestellung auslösen")}</div>`;
-  }
-
-  if (b.abteilung === "UH" && !b.fahrzeug) {
-    if (b.webstar_status === "gesendet")
-      return `<div class="info"><span class="klein fett">${t("freigabe")}</span>
-        <p class="klein">${t("webstarGesendet")}${b.freigegeben_am?" · "+datumKurz(b.freigegeben_am):""}</p></div>`;
-    return `<div class="info"><span class="klein fett">${t("freigabe")}</span>
-      <p class="klein">${t("freigabeHinweis")}</p>${knopf("frei", t("freigeben"))}</div>`;
+      ${knopf("frei", warnen ? "Bestellung auslösen" : t("freigeben"))}</div>`;
   }
 
   if (b.abteilung === "PFS" && b.lieferart === "mitarbeiter_adresse") {
