@@ -964,7 +964,7 @@ const springerBest = (b) => !!b.hauptlager && !!b.fahrzeug
 // Einzelne Personen bestellen nicht bei Webstar, sondern lassen im Hauptlager
 // vorbereiten. Sie geben dafuer an, auf wann sie das Material brauchen.
 const vorbereitung = () => uhFreigabe() && !!(S.user && S.user.ueber_hauptlager);
-const mehrereKunden = () => S.abteilung === "PFS" && !istSpringer();
+const mehrereKunden = () => S.abteilung === "PFS" && !springerModus();
 const lieferart = () => nutztFahrzeug() ? "magazin_abholung"
   : (pfsLieferung() ? (S.lieferWahl === "hause" ? "mitarbeiter_adresse" : "magazin_abholung")
                     : LIEFERART[S.abteilung]);
@@ -1290,7 +1290,7 @@ async function ladeStamm() {
   S.laden = true; render();
   try {
     S.artikel = sortiment(await DB.artikel(S.abteilung));
-    if (S.abteilung === "PFS" && !istSpringer())
+    if (S.abteilung === "PFS" && !springerModus())
       S.artikel = S.artikel.filter(a => !NUR_SPRINGER.includes(a.code));
     if (nutztFahrzeug() && !S.fahrzeuge.length) S.fahrzeuge = await DB.fahrzeuge();
   } catch { S.fehler = t("ladefehler"); }
@@ -3046,7 +3046,7 @@ async function senden() {
 
   const daten = {
     personalnummer: S.user.personalnummer,
-    pruefung: S.abteilung === "UH" && !istSpringer()
+    pruefung: S.abteilung === "UH" && !springerModus()
       ? uhPruefung((S.kunden[0]||{}).objektnummer, S.positionen) : null,
     abteilung: S.abteilung,
     lieferart: lieferart(),
