@@ -607,11 +607,17 @@ export default async function handler(req, res) {
     const kanal     = KANAL[String(d.abt || "").toUpperCase()] || null;
 
     let TO;
+    // Bei manchen Kunden geht die Meldung an mehrere Personen. Mehrere
+    // Adressen stehen in einem Feld, getrennt durch Komma oder Semikolon.
+    let TO_LISTE = null;
     if (anKunde) {
-      TO = String(d.empfaenger || "").trim();
-      if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(TO)) {
+      TO_LISTE = String(d.empfaenger || "")
+        .split(/[;,]/).map(a => a.trim()).filter(Boolean);
+      const gueltig = (a) => /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(a);
+      if (!TO_LISTE.length || !TO_LISTE.every(gueltig)) {
         return res.status(400).json({ fehler: "Kundenadresse fehlt oder ist ungültig" });
       }
+      TO = TO_LISTE[0];
     } else if (anKanal) {
       if (!kanal) return res.status(400).json({ fehler: "Kein Kanal für diese Abteilung" });
       TO = kanal;
@@ -623,9 +629,11 @@ export default async function handler(req, res) {
       TO = EMPFAENGER[anWebstar ? "webstar" : "lager"];
     }
 
-    const nachricht = { from: FROM, to: [TO], reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
+    const nachricht = { from: FROM, to: TO_LISTE || [TO],
+      reply_to: KUNDE_ANTWORT_AKTIV && anKunde ? KUNDE_ANTWORT : ANTWORT };
     if (anWebstar && KOPIE_WEBSTAR) nachricht.cc = [KOPIE_WEBSTAR];
-    if (anKunde && KOPIE_KUNDE && KOPIE_KUNDE !== TO) nachricht.cc = [KOPIE_KUNDE];
+    if (anKunde && KOPIE_KUNDE && !(TO_LISTE || [TO]).includes(KOPIE_KUNDE))
+      nachricht.cc = [KOPIE_KUNDE];
     // Die Mail ans Lager geht zusaetzlich in den Kanal der Abteilung.
     if (!anWebstar && !anKunde && !anKanal && !anDispo && !anLogistik && kanal && kanal !== TO) nachricht.cc = [kanal];
 
